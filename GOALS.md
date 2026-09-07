@@ -38,6 +38,9 @@ candidate; use the simplest approach justified by validation results.
 ## Results and presentation
 
 - Present explanations and results as Jupyter notebooks (`.ipynb`) in `results/`.
+- Title research questions in `README.md` as `Q0`, `Q1`, and so on, followed by
+  the question text. Each question must correspond to a notebook, linked from
+  its README entry and identified by the same question label.
 - Briefly describe every notebook in a `README.md` file, with a link to the
   notebook and a short explanation of its purpose.
 - Keep notebooks short and low in code: import Python modules and use a small
