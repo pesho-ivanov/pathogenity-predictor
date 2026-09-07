@@ -9,7 +9,7 @@ import unittest
 
 import pandas as pd
 
-from notebooks import q0
+from notebooks.src import q0
 
 
 HEADER = ('##fileformat=VCFv4.1\n##fileDate=2026-09-05\n##source=ClinVar\n'

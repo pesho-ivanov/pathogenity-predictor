@@ -1,10 +1,10 @@
 # Generated results
 
-Files produced by project notebooks live here; external inputs belong in `data/`.
+Files produced by project notebooks live here; external inputs belong in the project-root [data/](../../data/) directory.
 
 ## Q0 artifacts
 
-[Q0](../notebooks/Q0.ipynb) regenerates these Git-ignored files under `results/q0/`:
+[Q0](../Q0.ipynb) regenerates these Git-ignored files under `notebooks/results/q0/`:
 
 - `summary.json`: input provenance, quality counts, explicit filters, and limitations.
 - `cohort.csv.gz`: proposed unique SNVs, source IDs, all usable gene IDs, labels,

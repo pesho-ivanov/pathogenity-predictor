@@ -46,6 +46,17 @@ INFO_FIELDS = ['ALLELEID', 'CLNSIG', 'CLNREVSTAT', 'CLNSIGCONF', 'GENEINFO',
 KEY = ['chrom', 'pos', 'ref', 'alt']
 COLORS = ['#31688e', '#35b779', '#e69f00', '#cc6677', '#8172b3']
 
+# Notebook configuration. Paths are relative to this module, not the kernel cwd.
+ROOT = Path(__file__).resolve().parents[2]
+INPUT = ROOT / 'data/clinvar.vcf'
+ARCHIVE = Path('/root/data/clinvar.vcf.gz')
+OUTPUT = ROOT / 'notebooks/results/q0'
+SHA256 = '0524586dcf9e8c8f1fe7742450b0555ac55d04a6e9a262f61db1d15f113e622a'
+FILE_DATE = '2026-09-05'
+REFERENCE = 'GRCh38'
+MIN_REVIEW_STARS = 2
+WINDOW_BP = 8192  # Illustrative coordinate windows, not a model-context choice.
+
 
 def ensure_input(path, archive):
     """Use the supplied local file, or atomically decompress the local archive."""
@@ -420,4 +431,61 @@ def export_results(frame, cohort, funnel, audit, provenance, output_dir, window_
                        implementation_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
     (output_dir / 'environment.json').write_text(json.dumps(environment, indent=2) + '\n')
     print(f'Exported {len(cohort):,} proposed variants across {summary["cohort_gene_ids"]:,} gene IDs to {output_dir}')
+    return summary
+
+
+# Section calls used by Q0.ipynb. Inputs and results stay explicit between cells.
+def load_data():
+    started = time.monotonic()
+    variants, provenance = read_clinvar(
+        ensure_input(INPUT, ARCHIVE), expected_sha256=SHA256,
+        expected_date=FILE_DATE, expected_reference=REFERENCE,
+    )
+    print(f'{len(variants):,} records · {provenance["reference"]} · {provenance["fileDate"]}')
+    details('Input provenance', provenance)
+    details('Run configuration', {
+        'input': str(INPUT), 'archive': str(ARCHIVE), 'output': str(OUTPUT),
+        'min_review_stars': MIN_REVIEW_STARS, 'illustrative_window_bp': WINDOW_BP,
+    })
+    return variants, provenance, started
+
+
+def show_classifications(variants):
+    plot_classifications(variants)
+    details('Exact germline label mapping', LABELS)
+    details('Exact review-status mapping', REVIEW_STARS)
+
+
+def show_quality(variants):
+    audit = audit_data(variants)
+    plot_quality(variants, audit)
+    details('Quality and classification-availability counts', audit['metrics'])
+    details('Unknown or missing review statuses', audit['unknown_reviews'])
+    return audit
+
+
+def show_grouping(variants):
+    loci = context_groups(variants, WINDOW_BP)
+    grouping = plot_grouping(variants, loci, window_bp=WINDOW_BP)
+    details('SNV coordinate-group diagnostics', grouping)
+
+
+def show_cohort(variants, audit):
+    cohort, funnel = propose_cohort(variants, audit, MIN_REVIEW_STARS)
+    plot_cohort(cohort, funnel)
+    details('Sequential exclusions (rows, then unique variants)', funnel)
+    details('Executable cohort checks', assert_cohort(cohort, audit['inconsistent_keys'], MIN_REVIEW_STARS))
+    details('Candidate preview: audit annotations, not features',
+            cohort[KEY + ['CLNSIG', 'CLNREVSTAT', 'gene_ids']].head(10))
+    return cohort, funnel
+
+
+def save_results(variants, cohort, funnel, audit, provenance, started):
+    summary = export_results(
+        variants, cohort, funnel, audit, provenance, OUTPUT,
+        window_bp=WINDOW_BP, min_stars=MIN_REVIEW_STARS,
+    )
+    print(f'Completed in {(time.monotonic() - started) / 60:.1f} minutes (CPU).')
+    details('Cohort class counts', summary['cohort_labels'])
+    details('Limits of this audit', summary['limitations'])
     return summary

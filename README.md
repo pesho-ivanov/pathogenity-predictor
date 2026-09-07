@@ -20,15 +20,16 @@ published variant-effect results, so the strongest contribution would address
 generalization, reliability, and when its representations add value.
 ([Evo2 paper](https://www.nature.com/articles/s41586-026-10176-5))
 
-### Q0. What does the ClinVar dataset contain, and which variants are suitable for reliable evaluation?
+Question titles link to available notebooks. Q1–Q6 are planned; their notebooks
+have not been created yet.
+
+### [Q0. What does the ClinVar dataset contain, and which variants are suitable for reliable evaluation?](notebooks/Q0.ipynb)
 
 Explore variant types, genes, pathogenicity labels, review status, missing
 annotations, conflicting classifications, and duplicate or related records.
 Use plots to reveal class imbalance and potential leakage, then define an
 initial dataset and filtering criteria.
 
-[Q0 notebook](notebooks/Q0.ipynb): full-file composition, label and review-status
-plots, data-quality and coordinate-overlap diagnostics, and a proposed cohort.
 All labels are explored; this is development data, not an untouched test set.
 
 ### Q1. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring on previously unseen genes?
@@ -80,8 +81,8 @@ are available.
 ## Notebooks
 
 Research notebooks and their explanations live in `notebooks/`; generated files
-live in `results/`. Q0 is linked
-above; Q1–Q6 have not been implemented yet. Reusable Q0 logic is in [q0.py](notebooks/q0.py).
+live in `notebooks/results/`. Q0 is linked
+above; Q1–Q6 have not been implemented yet. Reusable Q0 logic is in [q0.py](notebooks/src/q0.py).
 
 ### Running Q0
 
@@ -104,18 +105,21 @@ fresh kernel at the command line:
 
 ```bash
 .venv/bin/jupyter execute notebooks/Q0.ipynb --kernel_name=gamow-q0 --inplace --timeout=1200
-.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m unittest discover -s notebooks/src -v
 ```
 
+Configuration and workflow code live in `notebooks/src/q0.py`; notebook cells
+contain only an import and short section calls.
+
 The notebook verifies the input checksum, exports audit summaries and a
-provisional cohort under `results/q0/`, and keeps detailed tables in dropdowns.
+provisional cohort under `notebooks/results/q0/`, and keeps detailed tables in dropdowns.
 It does not assign train/validation/test splits or certify that leakage is absent.
 
 ## Data
 
 The local ClinVar VCF is excluded from Git. See [data/README.md](data/README.md)
 for its location and preparation command. `data/` contains external inputs only.
-Generated artifacts are described in [results/README.md](results/README.md).
+Generated artifacts are described in [results documentation](notebooks/results/README.md).
 
 ## Machine configuration
 

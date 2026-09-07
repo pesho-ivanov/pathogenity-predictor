@@ -21,5 +21,5 @@ This identifies the local input; the original download URL and chain of custody
 have not been independently verified. The notebook checks the hash, assembly,
 and date and fails if they differ. If only the local archive is available, it
 decompresses it automatically. It never silently fetches a newer ClinVar release.
-On another machine, supply the same VCF at `data/clinvar.vcf`, or set the notebook's
-archive path to a copy of the same compressed input.
+On another machine, supply the same VCF at `data/clinvar.vcf`, or set `ARCHIVE`
+in [q0.py](../notebooks/src/q0.py) to a copy of the same compressed input.

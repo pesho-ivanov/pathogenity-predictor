@@ -11,5 +11,5 @@ __pycache__/
 !/data/README.md
 
 # Regenerate notebook artifacts instead of committing them.
-/results/*
-!/results/README.md
+/notebooks/results/*
+!/notebooks/results/README.md
