@@ -31,8 +31,8 @@ SEED = 42
 N_VARIANTS = 5000
 CONTEXT = 1024
 SPLITS = ['train', 'validation']
-VCF_FILES = {'train': ROOT / 'data/clinvar-train.vcf',
-             'validation': ROOT / 'data/clinvar-test.vcf'}
+VCF_FILES = {'train': ROOT / 'data/clinvar-train-pilot.vcf',
+             'validation': ROOT / 'data/clinvar-test-pilot.vcf'}
 DNA_COLUMNS = ['variant_key', 'ref_sequence', 'alt_sequence']
 BASES = 'ACGT'
 
@@ -380,7 +380,7 @@ def protocol_config():
             'context_bp': CONTEXT, 'assembly': 'GRCh38', 'sampling': 'lowest SHA256(42:sample:variant_key), no labels',
             'split': 'SHA256(42:split:min_full_component_variant_key), 70/30 train/validation, no labels',
             'vcf_roles': {path.name: split for split, path in VCF_FILES.items()},
-            'evaluation_scope': 'Development only: clinvar-test.vcf is validation; no separate untouched test set',
+            'evaluation_scope': 'Development only: clinvar-test-pilot.vcf is validation; no separate untouched test set',
             'grouping': 'full-cohort genes, source variant/allele IDs, loci, overlapping windows; pilot identical DNA incl RC',
             'clinvar_sha256': q0.SHA256, 'clinvar_date': q0.FILE_DATE,
             'q0_implementation_sha256': digest_file(q0.__file__),
@@ -475,7 +475,7 @@ def prepare():
 def settings():
     print('Q0 cohort → 5,000-variant pilot → frozen training / validation groups')
     print('1,024-base windows · seed 42 · approximately 70% / 30% · CPU only')
-    print('data/clinvar-train.vcf = training; data/clinvar-test.vcf = validation (no separate test stage).')
+    print('data/clinvar-train-pilot.vcf = training; data/clinvar-test-pilot.vcf = validation (no separate test stage).')
     q0.details('Pinned inputs and split rules', protocol_config())
 
 

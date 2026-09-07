@@ -9,10 +9,10 @@ candidate; use the simplest approach justified by validation results.
 - Keep dependencies, abstractions, and model complexity minimal.
 - Keep one shared `requirements.txt` at the project root for all notebooks.
 - Store external inputs in `data/`. Q1 also writes the shared experiment inputs
-  `data/clinvar-train.vcf` and `data/clinvar-test.vcf` there. Store other generated
+  `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf` there. Store other generated
   files under `notebooks/results/`, organized by research question.
-- All subsequent experiments must use Q1's fixed VCF partitions: `clinvar-train.vcf`
-  for training and `clinvar-test.vcf` for validation. Keep their membership and
+- All subsequent experiments must use Q1's fixed VCF partitions: `clinvar-train-pilot.vcf`
+  for training and `clinvar-test-pilot.vcf` for validation. Keep their membership and
   checksums fixed; do not resample or move variants between the files.
 - Put reusable implementation in clear Python files with explicit inputs and
   outputs. Make data preparation, feature construction, split assignment,
@@ -28,7 +28,7 @@ candidate; use the simplest approach justified by validation results.
 
 - Prioritize credible evaluation over higher scores. Freeze training and
   validation before fitting any learned preprocessing or model. The current
-  workflow has no separate test stage; the filename `clinvar-test.vcf` denotes
+  workflow has no separate test stage; the filename `clinvar-test-pilot.vcf` denotes
   validation, not an untouched final test set.
 - Keep duplicate variants, alternate alleles at the same locus, overlapping
   sequence contexts, and related groups within one split. Keep genes disjoint

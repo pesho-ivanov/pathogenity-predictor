@@ -36,7 +36,7 @@ groups must be reconsidered with the actual sequence context and all related gen
 - `split_counts.csv`, `grouping.png`, `split_sizes.png`: explanatory diagram and split sizes.
 - `environment.json`: CPU runtime, package versions, seed and preparation code hash.
 
-Q1 additionally writes `data/clinvar-train.vcf` and `data/clinvar-test.vcf`.
+Q1 additionally writes `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf`.
 The latter is the validation partition; there is no separate test stage.
 Q2 and later experiments consume these fixed partitions and verify their hashes.
 
@@ -56,6 +56,20 @@ Q2 and later experiments consume these fixed partitions and verify their hashes.
 - `validation_predictions.csv`, `validation_report.json`, `validation_curves.png`,
   `auroc_intervals.png`: development results, paired component bootstrap intervals
   and plots. Validation also selects C; the intervals do not correct selection bias.
+
+## Q8 artifacts: tool survey
+
+[Q8](../Q8-tools-survey.ipynb) renders the reviewed catalog in
+`notebooks/src/q8_catalog.json` offline and writes to `notebooks/results/q8/`:
+
+- `survey.json`, `tool_comparison.csv`: dated tool comparisons and source URLs.
+- `tool_landscape.png`, `baseline_shortlist.png`: documented targets and proposed baselines.
+- `provenance.json`: catalog/code hashes, dependencies, artifact checksums and
+  executable catalog consistency checks.
+
+This is an authored literature survey. It does not access the ClinVar partitions,
+run predictors or measure accuracy. Any later benchmark must use Q1's fixed VCFs
+and audit the selected tools' actual training provenance and sequence contexts.
 
 ## Archived three-way experiment
 

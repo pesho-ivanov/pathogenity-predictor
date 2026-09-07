@@ -379,7 +379,7 @@ def predict_saved(model, values):
 
 
 def select_models():
-    """Train-only fits; select C using clinvar-test.vcf as validation."""
+    """Train-only fits; select C using clinvar-test-pilot.vcf as validation."""
     verify_protocol()
     features = load_features()
     pilot = read_csv(q1.OUTPUT / 'split_manifest.csv')

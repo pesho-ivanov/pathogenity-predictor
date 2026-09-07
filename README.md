@@ -1,4 +1,4 @@
-# Gamow predictor
+# Pesho's Pathogenicity Predictor
 
 A small research project for predicting genetic variant pathogenicity from
 ClinVar data. See [GOALS.md](GOALS.md) for the project requirements.
@@ -31,7 +31,7 @@ initial dataset and filtering criteria.
 Build the 5,000-variant pilot from Q0's cohort. Explain how genes, loci, source
 IDs and overlapping or identical sequence contexts connect variants into groups;
 assign whole groups to training and validation. Visualize the split sizes, verify
-separation and export `data/clinvar-train.vcf` and `data/clinvar-test.vcf` as the
+separation and export `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf` as the
 fixed inputs for all later experiments. The latter file contains validation data.
 
 ### [Q2. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring on previously unseen genes?](notebooks/Q2-evo2-classifier.ipynb)
@@ -78,42 +78,20 @@ Freeze training labels at an earlier release and evaluate variants that later
 receive clear classifications. This requires historical snapshots and careful
 provenance checks, but would test usefulness beyond reproducing existing labels.
 
+### [Q8. What in silico tools currently exist for predicting genetic variant pathogenicity, and which are suitable baselines for this project?](notebooks/Q8-tools-survey.ipynb)
+
+Survey tools for missense, splicing, regulatory effects and broad variant scoring.
+Compare their inputs, availability, licensing, compute and clinical training or
+calibration exposure. Use a dated, cited overview to identify practical baselines
+for evaluation on Q1's fixed partitions.
+
 ## Notebooks
 
 Research notebooks and their explanations live in `notebooks/`; generated files
 live in `notebooks/results/`.
 Implementation lives in [q0.py](notebooks/src/q0.py), [q1.py](notebooks/src/q1.py)
-and [q2.py](notebooks/src/q2.py).
-
-## Setup
-
-Use Python 3.12 and the input described in [data/README.md](data/README.md).
-Allow 16 GB host RAM. Q0 and Q1 run on CPU; Q2 also requires the Evo2 CUDA stack,
-an NVIDIA GPU with FP8 support (compute capability 8.9 or later), and about 8 GB
-free disk beyond ClinVar.
-
-For a fresh machine, start the NVIDIA image used by the
-[upstream Evo2 Dockerfile](evo2/Dockerfile), with this repository mounted:
-
-```bash
-docker run --gpus all --ipc=host --rm -it \
-  -v "$PWD":/workspace -v "$HOME/.cache/huggingface":/root/.cache/huggingface \
-  -w /workspace nvcr.io/nvidia/pytorch:25.04-py3 bash
-```
-
-Inside that container, or in an existing compatible GPU environment,
-create a virtual environment that preserves the compiled CUDA packages:
-
-```bash
-python3 -m venv --system-site-packages .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m ipykernel install --user --name gamow --display-name "Gamow"
-.venv/bin/python -m jupyterlab notebooks/
-```
-
-Select the **Gamow** kernel and run each notebook from a fresh kernel in cell order.
-Dependencies are shared in [requirements.txt](requirements.txt); experiment settings,
-checks, results and limitations are documented in the notebooks.
+and [q2.py](notebooks/src/q2.py). The tool survey uses [q8.py](notebooks/src/q8.py)
+and a [bundled source catalog](notebooks/src/q8_catalog.json).
 
 ## Data
 

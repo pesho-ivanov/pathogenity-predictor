@@ -134,13 +134,13 @@ class ModelBoundaryTests(unittest.TestCase):
 class ProvenanceTests(unittest.TestCase):
     def test_model_protocol_requires_exact_q1_data_and_model_settings(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(q2, 'OUTPUT', Path(directory)):
-            split_protocol = {'artifacts': {'split_manifest.csv': 'frozen'}, 'vcf_exports': {'clinvar-train.vcf': 'a', 'clinvar-test.vcf': 'b'}}
+            split_protocol = {'artifacts': {'split_manifest.csv': 'frozen'}, 'vcf_exports': {'clinvar-train-pilot.vcf': 'a', 'clinvar-test-pilot.vcf': 'b'}}
             q2.write_json(q2.OUTPUT / 'protocol.json', {'config': q2.protocol_config(), **split_protocol})
             with patch.object(q2.q1, 'verify_protocol', return_value=split_protocol):
                 q2.verify_protocol()
                 with patch.object(q2, 'CS', [100.]), self.assertRaisesRegex(RuntimeError, 'configuration changed'):
                     q2.verify_protocol()
-            with patch.object(q2.q1, 'verify_protocol', return_value={**split_protocol, 'vcf_exports': {'clinvar-train.vcf': 'changed'}}):
+            with patch.object(q2.q1, 'verify_protocol', return_value={**split_protocol, 'vcf_exports': {'clinvar-train-pilot.vcf': 'changed'}}):
                 with self.assertRaisesRegex(RuntimeError, 'exact frozen Q1 inputs'):
                     q2.verify_protocol()
             with patch.object(q2.q1, 'verify_protocol', return_value={**split_protocol, 'artifacts': {'split_manifest.csv': 'reassigned'}}):

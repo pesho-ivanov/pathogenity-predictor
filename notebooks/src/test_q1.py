@@ -126,7 +126,7 @@ class FrozenDataTests(unittest.TestCase):
     def test_protocol_rejects_changed_data_and_settings(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            files = {'train': root / 'clinvar-train.vcf', 'validation': root / 'clinvar-test.vcf'}
+            files = {'train': root / 'clinvar-train-pilot.vcf', 'validation': root / 'clinvar-test-pilot.vcf'}
             with patch.object(q1, 'OUTPUT', root), patch.object(q1, 'VCF_FILES', files):
                 path = root / 'split_manifest.csv'
                 path.write_text('variant_key,split\nv1,train\n')
@@ -161,8 +161,8 @@ class VCFExportTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        self.files = {'train': self.root / 'clinvar-train.vcf',
-                      'validation': self.root / 'clinvar-test.vcf'}
+        self.files = {'train': self.root / 'clinvar-train-pilot.vcf',
+                      'validation': self.root / 'clinvar-test-pilot.vcf'}
         self.source = self.root / 'clinvar.vcf'
         self.header = ('##fileformat=VCFv4.1\n##source=ClinVar\n##reference=GRCh38\n'
                        '##fileDate=2026-09-05\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')

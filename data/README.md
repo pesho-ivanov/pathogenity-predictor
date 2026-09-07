@@ -29,8 +29,8 @@ in [q0.py](../notebooks/src/q0.py) to a copy of the same compressed input.
 Run [Q1](../notebooks/Q1-clinvar-split.ipynb) to produce the fixed inputs for all subsequent
 experiments:
 
-- `clinvar-train.vcf`: training variants, used to fit preprocessing and models.
-- `clinvar-test.vcf`: validation variants, used to select settings and compare
+- `clinvar-train-pilot.vcf`: training variants, used to fit preprocessing and models.
+- `clinvar-test-pilot.vcf`: validation variants, used to select settings and compare
   models. Despite its filename, this is **not a separate final test set**.
 
 These files contain Q1's eligible 5,000-variant pilot, not the entire ClinVar VCF.
