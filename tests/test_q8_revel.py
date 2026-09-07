@@ -11,7 +11,10 @@ import zipfile
 import numpy as np
 import pandas as pd
 
-from . import q8_baseline as baseline, q8_revel as revel
+try:
+    from . import q8_baseline as baseline, q8_revel as revel
+except ImportError:
+    from notebooks.src import q8_baseline as baseline, q8_revel as revel
 
 
 class RevelTests(unittest.TestCase):

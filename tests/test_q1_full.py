@@ -7,7 +7,11 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from . import q1, q1_full, test_q1
+try:
+    from . import q1, q1_full, test_q1
+except ImportError:
+    from notebooks.src import q1, q1_full
+    from . import test_q1
 
 
 class FullCoverageTests(unittest.TestCase):
@@ -78,7 +82,7 @@ class FullExportTests(unittest.TestCase):
         self.files = {'train': self.root / 'clinvar-train.vcf', 'validation': self.root / 'clinvar-test.vcf'}
         self.source = self.root / 'source.vcf'
         self.header = ('##fileformat=VCFv4.1\n##source=ClinVar\n##reference=GRCh38\n'
-                       '##fileDate=2026-09-05\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
+                       '##fileDate=2026-07-06\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
         self.records = [f'1\t{pos}\t{i+100}\tA\tC\t.\t.\t'
                         f'ALLELEID={i+200};CLNSIG={label};GENEINFO=G{i}:{i+1};'
                         'CLNREVSTAT=reviewed_by_expert_panel;MC=SO:0001583|missense_variant\n'

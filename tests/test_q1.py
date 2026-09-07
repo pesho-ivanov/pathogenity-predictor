@@ -153,13 +153,23 @@ class SequenceTests(unittest.TestCase):
 
 
 class FrozenDataTests(unittest.TestCase):
-    def test_pilot_snapshot_does_not_follow_q0_snapshot_changes(self):
-        expected = q1.protocol_config()
-        with patch.object(q1.q0, 'FILE_DATE', '2000-01-01'), \
-                patch.object(q1.q0, 'SHA256', 'different-snapshot'), \
-                patch.object(q1.q0, 'INPUT', Path('/different/input.vcf')):
-            self.assertEqual(q1.protocol_config(), expected)
-            self.assertEqual(q1.CLINVAR_DATE, '2026-09-05')
+    def test_q0_and_q1_share_the_pinned_july_source(self):
+        for left, right in [('CLINVAR_INPUT', 'INPUT'), ('CLINVAR_ARCHIVE', 'ARCHIVE'),
+                            ('CLINVAR_URL', 'URL'), ('CLINVAR_ARCHIVE_MD5', 'ARCHIVE_MD5'),
+                            ('CLINVAR_SHA256', 'SHA256'), ('CLINVAR_DATE', 'FILE_DATE')]:
+            self.assertEqual(getattr(q1, left), getattr(q1.q0, right))
+        self.assertEqual(q1.CLINVAR_INPUT.name, 'clinvar_20260706.vcf')
+        self.assertEqual(q1.CLINVAR_DATE, '2026-07-06')
+
+    def test_changed_component_anchors_preserve_inherited_assignments(self):
+        self.assertEqual(len(q1.INHERITED_COMPONENT_SPLITS), 14)
+        for component, split in q1.INHERITED_COMPONENT_SPLITS.items():
+            raw = 'train' if int(q1.seeded_hash(component, 'split'), 16) / 2**256 < .70 else 'validation'
+            self.assertNotEqual(raw, split)
+            self.assertEqual(q1.assign_split(component), split)
+        component = 'new-component'
+        raw = 'train' if int(q1.seeded_hash(component, 'split'), 16) / 2**256 < .70 else 'validation'
+        self.assertEqual(q1.assign_split(component), raw)
 
     def test_protocol_rejects_changed_data_and_settings(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -201,9 +211,9 @@ class VCFExportTests(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.files = {'train': self.root / 'clinvar-train-pilot.vcf',
                       'validation': self.root / 'clinvar-test-pilot.vcf'}
-        self.source = self.root / 'clinvar.vcf'
+        self.source = self.root / 'clinvar_20260706.vcf'
         self.header = ('##fileformat=VCFv4.1\n##source=ClinVar\n##reference=GRCh38\n'
-                       '##fileDate=2026-09-05\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
+                       '##fileDate=2026-07-06\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
         self.records = [f'1\t{pos}\t{i+100}\tA\tC\t.\t.\t'
                         f'ALLELEID={i+200};CLNSIG={label};GENEINFO=G{i}:{i+1};'
                         'CLNREVSTAT=reviewed_by_expert_panel;MC=SO:0001583|missense_variant\n'

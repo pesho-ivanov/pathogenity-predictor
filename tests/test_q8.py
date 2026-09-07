@@ -11,7 +11,10 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from . import q8, q8_baseline as baseline
+try:
+    from . import q8, q8_baseline as baseline
+except ImportError:
+    from notebooks.src import q8, q8_baseline as baseline
 
 
 class DownloadTests(unittest.TestCase):

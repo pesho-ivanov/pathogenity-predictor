@@ -7,7 +7,10 @@ from unittest.mock import patch
 
 import numpy as np
 
-from . import q1, q2, q10
+try:
+    from . import q1, q2, q10
+except ImportError:
+    from notebooks.src import q1, q2, q10
 
 
 class Q10Tests(unittest.TestCase):

@@ -48,7 +48,8 @@ METHOD_PAPERS = {
     'q8:PrimateAI-3D': '[Gao et al. (2023)](https://doi.org/10.1126/science.abn8197)',
 }
 SOURCE_FILES = {
-    'q1': ['protocol.json', 'split_manifest.csv', 'validation_labels.csv'],
+    'q1': ['protocol.json', 'split_manifest.csv', 'validation_labels.csv',
+           'full/protocol.json', 'full/split_manifest.csv', 'full/validation_labels.csv'],
     'q2': ['protocol.json', 'validation_report.json', 'validation_predictions.csv'],
     'q8': [str(Path(folder) / name) for folder, _, _ in Q8_EXPORTS.values()
            for name in ['baseline_protocol.json', 'baseline_provenance.json', 'validation_metrics.json', 'pilot_evaluation.csv']]
@@ -98,7 +99,8 @@ def source_paths(root=ROOT):
     paths.add(root / 'notebooks/src/q8_catalog.json')
     for question, names in SOURCE_FILES.items():
         paths.update(root / 'notebooks/results' / question / name for name in names)
-    paths.update(root / 'data' / name for name in ['clinvar-train-pilot.vcf', 'clinvar-test-pilot.vcf'])
+    paths.update(root / 'data' / name for name in ['clinvar-train-pilot.vcf', 'clinvar-test-pilot.vcf',
+                                                'clinvar-train.vcf', 'clinvar-test.vcf'])
     for path in (root / 'notebooks/results').glob('q*/comparison_results.json'):
         paths.add(path)
         # This is the documented filename for future notebooks' prediction exports.
@@ -125,6 +127,12 @@ def source_signature(root=ROOT, content=False):
 
 def load_context(root):
     directory = root / 'notebooks/results/q1'
+    # New experiments use the full cohort. Never fall back to pilot results when
+    # a published full protocol fails validation.
+    scope = 'pilot'
+    if (directory / 'full').exists():
+        directory = directory / 'full'
+        scope = 'full'
     protocol = read_json(directory / 'protocol.json')
     require(protocol['config']['assembly'] == 'GRCh38' and
             'SO:0001583' in protocol['config']['eligibility'], 'Q1 must identify the missense GRCh38 cohort')
@@ -132,7 +140,8 @@ def load_context(root):
         verified(directory / name, protocol['artifacts'][name])
     for name, checksum in protocol['vcf_exports'].items():
         verified(root / 'data' / name, checksum)
-    pilot = pd.read_csv(directory / 'split_manifest.csv')
+    pilot = pd.read_csv(directory / 'split_manifest.csv',
+                        usecols=['variant_key', 'split', 'component', 'MC'])
     require(not pilot.variant_key.duplicated().any(), 'Duplicate Q1 variants')
     require(pilot.MC.map(lambda value: isinstance(value, str) and any(
         term.partition('|')[0] == 'SO:0001583' for term in value.split(','))).all(), 'Nonmissense Q1 variants')
@@ -146,7 +155,8 @@ def load_context(root):
     validation = validation.merge(labels, on='variant_key', validate='one_to_one')
     require(set(validation.label) == {0, 1}, 'Q1 validation needs both ClinVar classes')
     return {'protocol_sha256': digest(directory / 'protocol.json'), 'vcf_exports': protocol['vcf_exports'],
-            'validation': validation, 'pilot_keys': pilot.variant_key.tolist(), 'config': protocol['config']}
+            'validation': validation, 'pilot_keys': pilot.variant_key.tolist(),
+            'config': protocol['config'], 'scope': scope}
 
 
 def align_predictions(frame, context, columns, allow_missing=False):
@@ -256,12 +266,13 @@ def collect(root=ROOT, repetitions=REPETITIONS):
     definitions = [
         ('q2', Q2_METHODS, 'Not run', 'Missense feature extraction/evaluation pending. Validation selects C.'),
         ('q8', {tool['name']: tool['name'] for tool in catalog['tools']}, 'Not evaluated',
-         'Surveyed tool; no pilot predictions exported.'),
+         'Surveyed tool; no predictions exported for the current cohort.'),
         ('q9', Q9_METHODS, 'Not run', 'Training has not produced a completed evaluation.'),
     ]
     methods = {f'{question}:{key}': {'id': f'{question}:{key}', 'question': question.upper(), 'method': name,
                                    'status': status, 'note': note}
                for question, names, status, note in definitions for key, name in names.items()}
+    methods['q8:PrimateAI-3D']['note'] = 'Requires licensed data; no predictions for the current cohort.'
     result = {'generated_utc': datetime.now(timezone.utc).isoformat(), 'methods': [], 'common': {},
               'cohort': None, 'bootstrap': {'repetitions': repetitions, 'seed': SEED}, 'errors': {}}
     try:
@@ -275,6 +286,8 @@ def collect(root=ROOT, repetitions=REPETITIONS):
     validation = context['validation']
     result['cohort'] = {key: context[key] for key in ['protocol_sha256', 'vcf_exports']}
     result['cohort']['validation_variants'] = len(validation)
+    result['cohort']['clinvar_date'] = context['config'].get('clinvar_date', 'unspecified snapshot')
+    result['cohort']['scope'] = context['scope']
     predictions = {}
     loaders = [('q2', load_q2, 'validation_report.json', None)] + [
         ('q8', load_q8, str(Path(folder) / 'baseline_provenance.json'), tool)
@@ -393,9 +406,10 @@ def render(result, root=ROOT):
                       'AUROC [95% CI]': format_metric(row, 'auroc'),
                       'Average precision [95% CI]': format_metric(row, 'average_precision')})
     cohort = result['cohort']
-    intro = (f'**{cohort["validation_variants"]:,} missense validation variants · ClinVar labels**' if cohort
+    intro = (f'**{cohort["validation_variants"]:,} missense validation variants · '
+             f'ClinVar {cohort.get("clinvar_date", "unspecified snapshot")} · {cohort.get("scope", "pilot")} cohort**' if cohort
              else '**Frozen validation inputs unavailable**')
-    sections = ['## Method comparison', 'Compare methods on Q1’s frozen missense **pilot** validation set. These scores do not evaluate the full VCF exports.', intro,
+    sections = ['## Method comparison', 'Compare methods on Q1’s current frozen missense validation set. Only results matching its snapshot and complete cohort are included.', intro,
                 markdown_table(table)]
     available = [row for row in rows if row.get('metrics')]
     if result['common']:

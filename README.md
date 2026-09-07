@@ -3,84 +3,106 @@
 A small research project for predicting the pathogenicity of **missense variants**
 using ClinVar data.
 
-The evaluation tables use the preserved **5,000-variant pilot**. Q1 provides
-separately frozen full datasets for new experiments.
+Q0 and Q1 use the **6 July 2026** ClinVar snapshot. The evaluation tables require
+results from its full missense dataset; September pilot evaluations are archived.
 
 <!-- comparison:start -->
 ## Method comparison
 
-Compare methods on Q1’s frozen missense **pilot** validation set. These scores do not evaluate the full VCF exports.
+Compare methods on Q1’s current frozen missense validation set. Only results matching its snapshot and complete cohort are included.
 
-**1,342 missense validation variants · ClinVar labels**
+**17,927 missense validation variants · ClinVar 2026-07-06 · full cohort**
 
 | Method | Notebook | Paper | Scored / validation | AUROC [95% CI] | Average precision [95% CI] |
 | --- | --- | --- | --- | --- | --- |
-| Evo2 1B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | 1,342 / 1,342 | 0.866 [0.840, 0.890] | 0.769 [0.713, 0.817] |
-| SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | 1,270 / 1,342 | 0.897 [0.877, 0.915] | 0.798 [0.748, 0.840] |
-| PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | 1,229 / 1,342 | 0.903 [0.884, 0.921] | 0.827 [0.775, 0.872] |
-| REVEL | [Q8](notebooks/Q8-existing-tools.ipynb) | [Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016) | 1,330 / 1,342 | 0.978 [0.970, 0.985] | 0.960 [0.941, 0.975] |
-| AlphaMissense | [Q8](notebooks/Q8-existing-tools.ipynb) | [Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492) | 1,276 / 1,342 | 0.967 [0.958, 0.976] | 0.943 [0.922, 0.960] |
-| EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | 705 / 1,342 | 0.912 [0.888, 0.934] | 0.906 [0.869, 0.937] |
-| Evo2 1B base frozen head (BioNeMo, BF16) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | 1,342 / 1,342 | 0.654 [0.614, 0.690] | 0.552 [0.475, 0.618] |
-| Sequence baseline (Evo2 1B experiment) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | 1,342 / 1,342 | 0.563 [0.529, 0.598] | 0.390 [0.330, 0.455] |
-| Evo2 7B base frozen head (BioNeMo, BF16) | [Q10](notebooks/Q10-evo2-7b.ipynb) | — | 1,342 / 1,342 | 0.881 [0.856, 0.903] | 0.803 [0.753, 0.843] |
+| Evo2 1B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | — | — | — |
+| SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | — | — | — |
+| PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | — | — | — |
+| REVEL | [Q8](notebooks/Q8-existing-tools.ipynb) | [Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016) | — | — | — |
+| AlphaMissense | [Q8](notebooks/Q8-existing-tools.ipynb) | [Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492) | — | — | — |
+| EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | — | — | — |
+| Evo2 1B base frozen head (BioNeMo, BF16) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — |
+| Sequence baseline (Evo2 1B experiment) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — |
+| Evo2 7B base frozen head (BioNeMo, BF16) | [Q10](notebooks/Q10-evo2-7b.ipynb) | — | — | — | — |
 | PrimateAI-3D (licensed) | [Q8](notebooks/Q8-existing-tools.ipynb) | [Gao et al. (2023)](https://doi.org/10.1126/science.abn8197) | — | — | — |
-
-**Direct comparison on the same variants**
-
-| Method | Paper | Shared variants | AUROC [95% CI] | Average precision [95% CI] |
-| --- | --- | --- | --- | --- |
-| Evo2 1B base zero-shot (Vortex, FP8) (Q2) | — | 672 | 0.851 [0.816, 0.885] | 0.846 [0.798, 0.889] |
-| SIFT4G (Q8) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | 672 | 0.901 [0.875, 0.925] | 0.882 [0.832, 0.920] |
-| PolyPhen-2 (Q8) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | 672 | 0.911 [0.888, 0.932] | 0.906 [0.863, 0.938] |
-| REVEL (Q8) | [Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016) | 672 | 0.971 [0.959, 0.982] | 0.970 [0.950, 0.983] |
-| AlphaMissense (Q8) | [Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492) | 672 | 0.966 [0.952, 0.978] | 0.967 [0.950, 0.980] |
-| EVE (Q8) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | 672 | 0.911 [0.889, 0.934] | 0.909 [0.872, 0.938] |
-| Evo2 1B base frozen head (BioNeMo, BF16) (Q9) | — | 672 | 0.651 [0.604, 0.698] | 0.686 [0.615, 0.753] |
-| Sequence baseline (Evo2 1B experiment) (Q9) | — | 672 | 0.577 [0.530, 0.626] | 0.580 [0.499, 0.655] |
-| Evo2 7B base frozen head (BioNeMo, BF16) (Q10) | — | 672 | 0.879 [0.850, 0.909] | 0.888 [0.853, 0.919] |
 
 <details>
 <summary>Provenance, missing results and limitations</summary>
 
 | Method | Details |
 | --- | --- |
-| Evo2 1B base zero-shot (Vortex, FP8) (Q2) | Development result; validation participates in model selection. |
-| SIFT4G (Q8) | dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited. |
-| PolyPhen-2 (Q8) | HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar. |
-| REVEL (Q8) | HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations. |
-| AlphaMissense (Q8) | ClinVar calibration overlap unresolved; maximum matching transcript score. |
-| EVE (Q8) | dbNSFP4.9a continuous EVE score; maximum across matches, no confidence-category filtering. Limited protein/position coverage. |
-| Evo2 1B base frozen head (BioNeMo, BF16) (Q9) | Development result; validation participates in model selection. |
-| Sequence baseline (Evo2 1B experiment) (Q9) | Development result; validation participates in model selection. |
-| Evo2 7B base frozen head (BioNeMo, BF16) (Q10) | Validation selects C; pretraining and homology overlap remain unresolved. The 1B baseline uses the original BF16-sensitive checkpoint, so this is a comparison of configurations, not an isolated model-size effect. |
-| PrimateAI-3D (Q8) | PrimateAI-3D has not been run: Illumina requires a signed license agreement and supplies the score/model download link by email. No approved link or licensed score file was provided. The original PrimateAI scores in dbNSFP are a different model and are not substituted. |
+| Evo2 1B base zero-shot (Vortex, FP8) (Q2) | Q2 cohort is stale |
+| SIFT4G (Q8) | Q8 cohort is stale |
+| PolyPhen-2 (Q8) | Q8 cohort is stale |
+| REVEL (Q8) | Q8 cohort is stale |
+| AlphaMissense (Q8) | Q8 cohort is stale |
+| EVE (Q8) | Q8 cohort is stale |
+| Evo2 1B base frozen head (BioNeMo, BF16) (Q9) | Q9 cohort is stale |
+| Sequence baseline (Evo2 1B experiment) (Q9) | Q9 cohort is stale |
+| Evo2 7B base frozen head (BioNeMo, BF16) (Q10) | Export cohort is stale |
+| PrimateAI-3D (Q8) | Requires licensed data; no predictions for the current cohort. |
 
 ```json
 {
   "cohort": {
-    "protocol_sha256": "0b1b21eb6fb829884d1f8bd09c0314a34ae2acddb018f239d6346f7933566409",
+    "protocol_sha256": "79c57bccf81867775b19c4ea272b4de9743c36b782242b4641be49185aca167c",
     "vcf_exports": {
-      "clinvar-test-pilot.vcf": "1007a3b5229199203c1174e78d430ad0195b9f33ea258af1829077223e72f4eb",
-      "clinvar-train-pilot.vcf": "db7bf9cd1b743e2a9f7045a7053f268b9f568dd9726347af286e224c1b572ea6"
+      "clinvar-test.vcf": "ae019c877240364c5ab02884a68ed93f203efad1650137a8be83369fe59a8d7a",
+      "clinvar-train.vcf": "aa7d1e941ba06cd8ccc7531ae5946b4e851b7d321c531fc583d76fdd64bbdd86"
     },
-    "validation_variants": 1342
+    "validation_variants": 17927,
+    "clinvar_date": "2026-07-06",
+    "scope": "full"
   },
-  "source_errors": {},
+  "source_errors": {
+    "Q2": "Q2 cohort is stale",
+    "Q8 AlphaMissense": "Q8 cohort is stale",
+    "Q8 REVEL": "Q8 cohort is stale",
+    "Q8 SIFT4G": "Q8 cohort is stale",
+    "Q8 PolyPhen-2": "Q8 cohort is stale",
+    "Q8 EVE": "Q8 cohort is stale",
+    "Q9": "Q9 cohort is stale",
+    "Q8 PrimateAI-3D": "PrimateAI-3D access report is stale or invalid",
+    "Q10": "Export cohort is stale"
+  },
   "bootstrap": {
     "repetitions": 1000,
     "seed": 42
   },
-  "generated_utc": "2026-09-07T18:50:04.520678+00:00"
+  "generated_utc": "2026-09-07T19:03:54.896347+00:00"
 }
 ```
 
 </details>
 
-**Conclusion.** Use the common-subset comparison to assess methods; coverage remains a separate limitation.
+**Conclusion.** No verified metrics are currently available. Complete the source experiments or resolve the listed input checks.
 
 These are development results: validation participates in model selection. AlphaMissense calibration and REVEL/PolyPhen-2 training overlap with ClinVar remain unresolved. The 95% intervals resample whole Q1 components and do not correct selection bias or establish clinical validity.
 <!-- comparison:end -->
+
+<details>
+<summary>Methodological choices of published predictors</summary>
+
+These six predictors use different evidence and learning strategies. A multiple
+sequence alignment (MSA) lines up related protein sequences to reveal conserved
+positions and coordinated changes. Clinical-label use below describes the original
+methods; Q8 uses ClinVar labels to evaluate the available predictions.
+
+| Method | Model type | Biological evidence | Training signal | Clinical-label use | Score source in this project |
+| --- | --- | --- | --- | --- | --- |
+| [SIFT4G](https://doi.org/10.1038/nprot.2015.123) | Conservation-based substitution scoring | Protein MSAs; amino-acid conservation | Amino-acid frequencies in related proteins | No clinical-label fitting in core scoring | [dbNSFP4.9a](data/README.md#q8-sift4g-polyphen-2-and-eve-scores); `1 - SIFT4G_score` |
+| [PolyPhen-2 HumVar](https://genetics.bwh.harvard.edu/wiki/%21pph2/overview) | Naïve Bayes classifier | Protein sequence conservation and structural features | [HumVar](https://genetics.bwh.harvard.edu/downloads/pph2/training/): disease/function variants versus common neutral human variants | Disease/function labels in training; ClinVar overlap unresolved | [dbNSFP4.9a](data/README.md#q8-sift4g-polyphen-2-and-eve-scores); `Polyphen2_HVAR_score` |
+| [REVEL](https://doi.org/10.1016/j.ajhg.2016.08.016) | Random forest ensemble | Scores from 13 prediction/conservation tools | HGMD disease variants versus rare presumed-neutral variants | Disease labels in training; constituent tools bring their own training histories; ClinVar overlap unresolved | [REVEL v1.3](data/README.md#q8-revel-scores); continuous REVEL score |
+| [AlphaMissense](https://doi.org/10.1126/science.adg7492) | AlphaFold-derived neural network | Protein MSAs and learned structural representations | Human/primate population variation, building on AlphaFold pretraining | Core model avoids clinical labels; [released scores and thresholds use ClinVar calibration](https://www.ebi.ac.uk/training/online/courses/alphafold/classifying-the-effects-of-missense-variants-using-alphamissense/understanding-pathogenicity-scores-from-alphamissense/) | [2023 GRCh38 release](data/README.md#q8-alphamissense-scores); `am_pathogenicity` |
+| [EVE](https://github.com/OATML-Markslab/EVE) | Protein-family variational autoencoder, then Gaussian mixture scoring | Protein MSAs; dependencies between amino-acid positions | Unsupervised learning of natural protein sequences | No clinical labels required for fitting/scoring; ClinVar used for evaluation | [dbNSFP4.9a](data/README.md#q8-sift4g-polyphen-2-and-eve-scores); continuous `EVE_score`, without confidence-category filtering |
+| [PrimateAI-3D](https://www.illumina.com/science/genomics-research/articles/primateai-3d.html) | 3D convolutional neural network | Protein 3D structures and MSAs | Common human/primate variation; auxiliary sequence/structure learning tasks | No clinical annotations for core training; ClinVar used for benchmarking | [Licensed scores](data/README.md#q8-primateai-3d-access); unavailable to this project |
+
+The score sources describe Q8's published-score lookups; current-cohort result
+availability is shown above. Training without clinical labels does not establish
+benchmark independence: calibration and overlap in variants, proteins or
+evolutionary sequences still require auditing.
+
+</details>
 
 ## Research questions
 
@@ -99,14 +121,16 @@ missense-only dataset and filtering criteria.
 
 ### [Q1. How should ClinVar missense variants be split for reliable evaluation on previously unseen genes?](notebooks/Q1-clinvar-split.ipynb)
 
-Prepare all 65,270 eligible missense SNVs from the September snapshot, using the
-pilot's quality filters and exact ClinVar `MC` annotation `SO:0001583`. Preserve
-the original 70/30 group assignment: 47,230 training and 18,040 validation variants.
+Prepare all eligible missense SNVs from **6 July 2026**, using the same
+`data/clinvar_20260706.vcf` input as Q0, the existing quality filters and exact
+ClinVar `MC` annotation `SO:0001583`. Preserve earlier splits for variants shared
+with September; new groups follow the seed-42, 70/30 assignment.
+The full dataset contains **64,815 variants: 46,888 training and 17,927 validation**.
 Check genes, loci, source IDs and overlapping or identical sequence contexts, then
 export [clinvar-train.vcf](data/clinvar-train.vcf) and
 [clinvar-test.vcf](data/clinvar-test.vcf) as the full inputs for new experiments.
-The latter file contains validation data. Earlier pilot inputs remain available
-to reproduce their recorded evaluations.
+The latter file contains validation data. September inputs and completed results
+are preserved in `notebooks/results/archive/before_shared_july_snapshot/`.
 
 ### [Q2. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring for missense variants in previously unseen genes?](notebooks/Q2-evo2-classifier.ipynb)
 
@@ -117,8 +141,11 @@ IDs, loci and overlapping contexts are grouped across the full cohort before
 sampling; identical pilot contexts, including reverse complements, also stay
 together. Clinical annotations are excluded from predictor features.
 
-The recorded Q2 experiment uses Q1's fixed pilot VCFs; new full-dataset experiments
-use the full exports. A separate untouched holdout is required for final performance claims.
+The 1B classifier comparison is preserved with the archived September pilot.
+The Evo2 7B base zero-shot extension uses Vortex/FP8 to score all **17,927 July
+validation variants**, without fitting a classifier or choosing a threshold.
+Its new README row uses the complete current cohort; historical scores are kept
+separate. A separate untouched holdout is required for final performance claims.
 
 ### Q3. How much does apparent missense predictive performance depend on similarities between training and test data?
 
@@ -180,8 +207,10 @@ Report paired component-bootstrap comparisons and compute usage. The original
 
 ## Data
 
-Q0 automatically downloads the dated **6 July 2026** ClinVar snapshot into `data/`
-when missing. Q1/Q2 retain their separately pinned **5 September 2026** pilot input.
+Q0 and Q1 share **`data/clinvar_20260706.vcf` (6 July 2026)** and automatically
+download the verified dated archive when needed. The obsolete `data/clinvar.vcf`
+has been removed. Completed Q2/Q8/Q9/Q10 September pilot runs remain historical;
+the current comparison requires results from the full July dataset.
 See [data/README.md](data/README.md) for filenames and checksum checks. Q1 also writes the two shared VCF
 partitions to `data/`; other generated files live under `notebooks/results/`.
 Generated artifacts are described in [results documentation](notebooks/results/README.md).

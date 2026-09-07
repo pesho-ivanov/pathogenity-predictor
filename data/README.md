@@ -1,6 +1,7 @@
 # Data
 
-Run [Q0](../notebooks/Q0-clinvar-summary.ipynb) to download the **6 July 2026**
+Run [Q0](../notebooks/Q0-clinvar-summary.ipynb) or
+[Q1](../notebooks/Q1-clinvar-split.ipynb) to download the **6 July 2026**
 GRCh38 ClinVar snapshot automatically when its local input is missing:
 
 - Archive: `data/clinvar_20260706.vcf.gz` (192,290,992 bytes).
@@ -9,40 +10,40 @@ GRCh38 ClinVar snapshot automatically when its local input is missing:
 - [Published archive MD5](https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2026/clinvar_20260706.vcf.gz.md5): `f78d25d49e17a070957a127e409f87b9`.
 - Decompressed SHA-256: `95ef7cef2b32bc5ac2edae06b27ca24442bb0b50e7e5113026129abdddefe664`.
 
-Q0 reuses an existing verified VCF. If only the archive exists, it verifies and
-decompresses that archive. Otherwise it downloads the dated archive, verifies it,
-and decompresses it. Temporary files become final files only after validation;
+Both notebooks reuse the same existing verified VCF. If only the archive exists,
+they verify and decompress it. Otherwise they download the dated archive, verify
+it, and decompress it. Temporary files become final files only after validation;
 a checksum mismatch or download failure stops execution. The VCF header is checked
 for `fileDate=2026-07-06` and `reference=GRCh38`. No moving latest-release URL is used.
 
-The existing Q1/Q2 missense pilot is separately pinned to **5 September 2026**.
-Its source remains `data/clinvar.vcf` with SHA-256
-`0524586dcf9e8c8f1fe7742450b0555ac55d04a6e9a262f61db1d15f113e622a`.
-If absent, Q1 downloads its own dated archive to `data/clinvar_20260905.vcf.gz`
-and verifies it before decompression. Q0's July download preserves this input and
-the current pilot partitions. All these data files are excluded from Git.
+The obsolete `data/clinvar.vcf` September input has been removed. Both notebooks
+use only the dated July path; all downloaded data files remain excluded from Git.
 
 ## Shared experiment partitions
 
-The [Q1](../notebooks/Q1-clinvar-split.ipynb) workflow prepares the **full missense
-cohort** from the same 5 September 2026 snapshot as the pilot. It uses Q0's quality
-and label filters (at least two review stars, unambiguous B/P labels, usable genes,
-nonconflicting single A/C/G/T substitutions on chromosomes 1–22, X and Y), then
-requires exact `SO:0001583` in ClinVar's `MC` field. All gene associations remain
-available for grouping, including records with multiple consequences.
+[Q1](../notebooks/Q1-clinvar-split.ipynb) prepares the **full missense cohort** from
+the same **6 July 2026** source as Q0. It applies Q0's quality and label filters
+(at least two review stars, unambiguous B/P labels, usable genes, nonconflicting
+single A/C/G/T substitutions on chromosomes 1–22, X and Y), then requires exact
+`SO:0001583` in ClinVar's `MC` field. All gene associations remain available for
+grouping, including records with multiple consequences.
 
-- `clinvar-train.vcf`: **47,230 variants**, training (72.36%).
-- `clinvar-test.vcf`: **18,040 variants**, validation (27.64%). Its filename does
-  not denote an untouched final test set.
+- `clinvar-train.vcf`: **46,888 training variants** (72.34%).
+- `clinvar-test.vcf`: **17,927 validation variants** (27.66%).
 
-All **65,270 eligible missense SNVs** pass the 1,024-base sequence checks; the
-5,000-variant sampling cap is removed. The original seed-42, 70/30 whole-group
-assignment remains fixed. Unequal group sizes make the actual proportions
-approximate. No class balancing, resampling or split reassignment is performed.
+All **64,815 eligible missense variants** pass the sequence checks; there are no sequence exclusions.
+
+The full dataset has no sampling cap or class balancing. Variants shared with the
+September eligible cohort retain their splits; 14 changed component anchors have
+fixed, label-independent overrides. New groups use the original seed-42, 70/30
+assignment. Unequal group sizes make the actual proportions approximate. July
+eligibility and labels are taken from July records; absent variants are not imported
+from September. The complete assignment is checksum-pinned before modeling.
+
 Grouping includes the broader Q0-eligible SNV cohort as relationship bridges.
-Every eligible reference and alternate context is checked, including identical
-sequences and reverse complements; a newly detected cross-split relationship stops
-preparation. All 5,000 pilot variants retain their original splits and DNA.
+Every eligible 1,024-base reference and alternate context is checked, including
+identical sequences and reverse complements. A cross-split relationship or REF
+mismatch stops preparation. Truncated or non-ACGT contexts are explicitly excluded.
 
 The [full protocol](../notebooks/results/q1/full/protocol.json) freezes both file
 checksums; the [full manifest](../notebooks/results/q1/full/split_manifest.csv)
@@ -50,22 +51,29 @@ records every variant and group. The [full-data module](../notebooks/src/q1_full
 provides `prepare()`, `verify_protocol()` and `load_partition_labels()` for new
 experiments. Predictor inputs use only the DNA allowlist; clinical annotations
 supply eligibility, outcomes and audit metadata. VCF headers and complete records
-are preserved in source order, and the original ClinVar input remains unchanged.
+are preserved in source order, and the July ClinVar input remains unchanged.
 
-The earlier `clinvar-train-pilot.vcf` (**3,658 variants**) and
-`clinvar-test-pilot.vcf` (**1,342 variants**) remain unchanged for reproducing the
-recorded Q2/Q8/Q9/Q10 experiments. Their original protocol and artifacts remain
-under `notebooks/results/q1/`, with [q1.py](../notebooks/src/q1.py) as the pilot
-implementation. Those evaluation scores describe the pilot, not the full cohort.
-New experiments must freeze their identities against the full protocol and refit
-training-dependent preprocessing/models; the two cohorts are not interchangeable.
-Both are development datasets. Final performance claims require an untouched holdout.
+The regenerated July pilot contains **3,654 training** variants in
+`clinvar-train-pilot.vcf` and **1,346 validation** variants in
+`clinvar-test-pilot.vcf`. Its protocol and grouping cohort live under
+`notebooks/results/q1/`. These are July inputs, distinct from the archived pilot.
 
-The broad-SNV experiment is preserved under
-`notebooks/results/archive/broad_snv_before_missense/`; the earlier pilot Q1 notebook
-is in `notebooks/results/archive/before_full_missense/`. These generated partition
-VCFs are the exception to keeping only external inputs in `data/`. All VCFs remain
-excluded from Git; other generated artifacts belong under `notebooks/results/`.
+The original September pilot (**3,658 training / 1,342 validation**) and full
+partitions, protocols, implementations and completed Q2/Q8/Q9/Q10 results are
+preserved under `notebooks/results/archive/before_shared_july_snapshot/`, with the
+original directory structure. `split_inheritance.json` records the migration's
+assignment rule and source checksums. The raw September VCF is not retained there;
+its dated download URL and checksums remain in the archived implementation.
+
+September scores do not evaluate the July datasets. New experiments must freeze
+against `results/q1/full/protocol.json`, refit training-dependent preprocessing and
+models, and evaluate the full July validation cohort. The README rejects predictions
+bound to another snapshot or cohort. Both datasets are for development; the
+`test` filename denotes validation, and final performance claims require an
+untouched holdout.
+
+These generated partition VCFs are the exception to keeping only external inputs
+in `data/`. Other generated artifacts belong under `notebooks/results/`.
 
 ## GRCh38 reference for Q1
 
@@ -87,6 +95,17 @@ The external Evo2 checkpoint uses the standard Hugging Face cache, outside
 generated notebook results: `arcinstitute/evo2_1b_base`, revision
 `2279e1df422c991037470302360edd40d0d2ea1e`. [Q2](../notebooks/Q2-evo2-classifier.ipynb) verifies its SHA-256
 `8ffba7d0e6445a8f2c92d9ff1c4e772c7f73ca9179f5e0c699b8b0ca1b966f64`.
+
+Q2's zero-shot 7B extension uses the external Hugging Face cache in the same way:
+[`arcinstitute/evo2_7b_base`](https://huggingface.co/arcinstitute/evo2_7b_base/tree/074097e9dc788e8bfe045d6495b9f6153a7c6bfc),
+revision `074097e9dc788e8bfe045d6495b9f6153a7c6bfc`, file `evo2_7b_base.pt`
+(13,006,429,947 bytes), SHA-256
+`d8a0e775a5d849921b8725837c6a3cbc71fa15e712f4189a2ed52ef955aad29b`.
+It uses Vortex/FP8 and the full July `clinvar-test.vcf` validation partition.
+The full training partition supplies only inference-check examples; no model or
+threshold is fitted. Its README row uses all 17,927 current validation variants.
+This is a separate checkpoint format and inference implementation from Q10's
+archived BioNeMo frozen classifier.
 
 ## Q8 AlphaMissense scores
 

@@ -5,10 +5,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-try:
-    from . import q9
-except ImportError:
-    from notebooks.src import q9
+from notebooks.src import q9
 
 
 class InputBoundaryTests(unittest.TestCase):
@@ -68,7 +65,7 @@ class InputBoundaryTests(unittest.TestCase):
             labels.assert_not_called()
 
     def test_failed_compatibility_never_launches_training(self):
-        from . import q9_environment
+        from notebooks.src import q9_environment
         result = {'identity': 'frozen', 'status': 'blocked', 'blockers': ['Backends disagree']}
         with patch.object(q9.q1, 'read_json', return_value=result), \
                 patch.object(q9, 'protocol_identity', return_value='frozen'), \
@@ -85,7 +82,7 @@ class ExecutionTests(unittest.TestCase):
         import fcntl
         import tempfile
         from pathlib import Path
-        from . import q9_environment
+        from notebooks.src import q9_environment
         with tempfile.TemporaryDirectory() as directory, patch.object(q9_environment, 'OUTPUT', Path(directory)):
             log = Path(directory) / 'experiment.log'
             log.write_text('active training')
@@ -101,7 +98,7 @@ class ExecutionTests(unittest.TestCase):
         import sys
         import tempfile
         from pathlib import Path
-        from . import q9_environment
+        from notebooks.src import q9_environment
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output = root / 'environment'
@@ -118,7 +115,7 @@ class NumericalProtocolTests(unittest.TestCase):
         import copy
         import tempfile
         from pathlib import Path
-        from . import q1, q9_experiment
+        from notebooks.src import q1, q9_experiment
         with tempfile.TemporaryDirectory() as directory, patch.object(q9_experiment, 'OUTPUT', Path(directory)):
             root = Path(directory)
             old = {'configuration': {'seed': 42}, 'parent_protocol_sha256': 'fixed-split',
@@ -154,8 +151,8 @@ class NumericalProtocolTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
         import torch
-        from .q9_backend import MasterAdamW
-        from .q9_experiment import save_checkpoint, restore_adapter
+        from notebooks.src.q9_backend import MasterAdamW
+        from notebooks.src.q9_experiment import save_checkpoint, restore_adapter
         torch.manual_seed(42)
         block = torch.nn.Linear(2, 2, dtype=torch.bfloat16)
         head = torch.nn.Linear(2, 1)
@@ -183,7 +180,7 @@ class NumericalProtocolTests(unittest.TestCase):
                 restore_adapter(saved, block, head, optimizer, mean+1, scale)
 
     def test_resume_preserves_early_stopping_and_tie_breaking(self):
-        from .q9_experiment import early_stopping_state
+        from notebooks.src.q9_experiment import early_stopping_state
         self.assertEqual(early_stopping_state([{'epoch': i, 'auroc': a}
                                               for i, a in enumerate([.7, .6, .7])]), (.7, 0, 2))
         with self.assertRaisesRegex(ValueError, 'contiguous'):
@@ -191,7 +188,7 @@ class NumericalProtocolTests(unittest.TestCase):
 
     def test_selected_hyena_block_learns_through_frozen_final_block(self):
         import torch
-        from .q9_backend import select_trainable_block
+        from notebooks.src.q9_backend import select_trainable_block
         model = torch.nn.Module()
         model.decoder = torch.nn.Module()
         model.decoder.layers = torch.nn.ModuleList([
@@ -215,8 +212,8 @@ class NumericalProtocolTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
         import torch
-        from .q9_backend import MasterAdamW
-        from .q9_experiment import save_checkpoint
+        from notebooks.src.q9_backend import MasterAdamW
+        from notebooks.src.q9_experiment import save_checkpoint
         block = torch.nn.Linear(1, 1, dtype=torch.bfloat16)
         head = torch.nn.Linear(1, 1)
         optimizer = MasterAdamW(block, head)
@@ -229,7 +226,7 @@ class NumericalProtocolTests(unittest.TestCase):
 
     def test_trace_handles_tuple_inputs_and_preserves_input_before_mutation(self):
         import torch
-        from . import q9_backend, q9_diagnostics
+        from notebooks.src import q9_backend, q9_diagnostics
         class Block(torch.nn.Module):
             def forward(self, value):
                 return value[0].add_(1)
@@ -254,7 +251,7 @@ class NumericalProtocolTests(unittest.TestCase):
 
     def test_paired_intervals_are_zero_for_identical_predictors(self):
         import numpy as np
-        from .q9_experiment import paired_intervals
+        from notebooks.src.q9_experiment import paired_intervals
         labels = np.tile([0, 1], 4)
         predictions = np.array([.2, .7, .3, .9, .6, .8, .1, .5])
         intervals = paired_intervals(labels, {'fine_tuned': predictions, 'frozen': predictions.copy()},
@@ -265,7 +262,7 @@ class NumericalProtocolTests(unittest.TestCase):
 
     def test_fp32_masters_preserve_updates_below_bf16_resolution(self):
         import torch
-        from .q9_backend import MasterAdamW
+        from notebooks.src.q9_backend import MasterAdamW
         block = torch.nn.Linear(1, 1, bias=False, dtype=torch.bfloat16)
         head = torch.nn.Linear(1, 1)
         with torch.no_grad():

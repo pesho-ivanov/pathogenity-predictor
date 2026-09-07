@@ -12,7 +12,10 @@ import nbformat
 import numpy as np
 import pandas as pd
 
-from . import comparison as c, comparison_watch as watch
+try:
+    from . import comparison as c, comparison_watch as watch
+except ImportError:
+    from notebooks.src import comparison as c, comparison_watch as watch
 
 
 class ComparisonTests(unittest.TestCase):
@@ -77,6 +80,59 @@ class ComparisonTests(unittest.TestCase):
             'implementation_sha256': c.digest(self.root / 'notebooks/src/q8_baseline.py'),
             'artifacts': {name: c.digest(directory / name) for name in
                           ['pilot_evaluation.csv', 'validation_metrics.json', 'baseline_protocol.json']}})
+
+    def publish_full_cohort(self):
+        directory = self.results / 'q1/full'
+        directory.mkdir()
+        self.pilot.to_csv(directory / 'split_manifest.csv', index=False)
+        self.labels.to_csv(directory / 'validation_labels.csv', index=False)
+        vcfs = {}
+        for name in ['clinvar-train.vcf', 'clinvar-test.vcf']:
+            path = self.root / 'data' / name
+            path.write_text('full July VCF fixture\n')
+            vcfs[name] = c.digest(path)
+        self.dump('notebooks/results/q1/full/protocol.json', {
+            'config': {'assembly': 'GRCh38', 'eligibility': 'MC SO:0001583',
+                       'clinvar_date': '2026-07-06'},
+            'vcf_exports': vcfs, 'artifacts': {name: c.digest(directory / name)
+                for name in ['split_manifest.csv', 'validation_labels.csv']}})
+        return directory
+
+    def test_full_cohort_excludes_old_pilot_metrics_and_labels_snapshot(self):
+        self.q8()
+        self.publish_full_cohort()
+        result, section = c.refresh(self.root, repetitions=10)
+        self.assertEqual(result['cohort']['scope'], 'full')
+        self.assertEqual(result['cohort']['clinvar_date'], '2026-07-06')
+        self.assertFalse(any(row.get('metrics') for row in result['methods']))
+        self.assertIn('ClinVar 2026-07-06', section)
+        self.assertIn('notebooks/results/q1/full/protocol.json', c.source_signature(self.root))
+        self.assertIn('data/clinvar-test.vcf', c.source_signature(self.root))
+
+    def test_invalid_full_cohort_cannot_fall_back_to_valid_pilot(self):
+        self.q8()
+        directory = self.publish_full_cohort()
+        (directory / 'validation_labels.csv').write_text('corrupt\n')
+        result = c.collect(self.root, repetitions=10)
+        self.assertIsNone(result['cohort'])
+        self.assertIn('Q1', result['errors'])
+        self.assertFalse(any(row.get('metrics') for row in result['methods']))
+
+    def test_export_bound_to_full_protocol_is_accepted(self):
+        directory = self.publish_full_cohort()
+        self.export(cohort=c.digest(directory / 'protocol.json'))
+        result = c.collect(self.root, repetitions=10)
+        row = next(row for row in result['methods'] if row['id'] == 'q10:score')
+        self.assertEqual(row['covered'], 4)
+        self.assertIn('metrics', row)
+
+    def test_missing_full_protocol_cannot_fall_back_to_pilot(self):
+        self.q8()
+        directory = self.publish_full_cohort()
+        (directory / 'protocol.json').unlink()
+        result = c.collect(self.root, repetitions=10)
+        self.assertIsNone(result['cohort'])
+        self.assertFalse(any(row.get('metrics') for row in result['methods']))
 
     def q2(self):
         directory = self.results / 'q2'

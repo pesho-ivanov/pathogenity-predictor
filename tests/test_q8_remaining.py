@@ -12,7 +12,10 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from . import q8_dbnsfp as db, q8_remaining as remaining
+try:
+    from . import q8_dbnsfp as db, q8_remaining as remaining
+except ImportError:
+    from notebooks.src import q8_dbnsfp as db, q8_remaining as remaining
 
 
 class TabixTests(unittest.TestCase):

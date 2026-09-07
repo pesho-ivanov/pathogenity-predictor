@@ -23,13 +23,13 @@ from . import q0
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / 'notebooks/results/q1'
-# This existing pilot remains tied to September when Q0 selects another snapshot.
-CLINVAR_INPUT = ROOT / 'data/clinvar.vcf'
-CLINVAR_ARCHIVE = ROOT / 'data/clinvar_20260905.vcf.gz'
-CLINVAR_URL = 'https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar_20260905.vcf.gz'
-CLINVAR_ARCHIVE_MD5 = 'ece04fe2ee72db1dd988d8b188df34b9'
-CLINVAR_SHA256 = '0524586dcf9e8c8f1fe7742450b0555ac55d04a6e9a262f61db1d15f113e622a'
-CLINVAR_DATE = '2026-09-05'
+# Q0 and Q1 share one dated source and one verified download cache.
+CLINVAR_INPUT = q0.INPUT
+CLINVAR_ARCHIVE = q0.ARCHIVE
+CLINVAR_URL = q0.URL
+CLINVAR_ARCHIVE_MD5 = q0.ARCHIVE_MD5
+CLINVAR_SHA256 = q0.SHA256
+CLINVAR_DATE = q0.FILE_DATE
 REFERENCE = ROOT / 'data/hg38.fa.gz'
 REFERENCE_URL = 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
 REFERENCE_MD5 = '1c9dcaddfa41027f17cd8f7a82c7293b'
@@ -43,9 +43,27 @@ VCF_FILES = {'train': ROOT / 'data/clinvar-train-pilot.vcf',
 DNA_COLUMNS = ['variant_key', 'ref_sequence', 'alt_sequence']
 BASES = 'ACGT'
 MISSENSE_SO = 'SO:0001583'
-# SHA256 of the sorted (variant_key, split) pairs from the earlier full cohort.
-# Rebuilding from the pinned VCF must preserve every established assignment.
-FULL_ASSIGNMENTS_SHA256 = '89888d17823a691eaae3af09b88102461a0f177a0c29b8fa221dac24b2916eed'
+# Frozen July assignments; all 341,718 variants shared with September retain
+# their split. Changed component anchors need the 14 label-independent overrides
+# below. The migration audit and prior manifests are preserved in results/archive.
+FULL_ASSIGNMENTS_SHA256 = '31d028f56340493402d797e12a242d58b86ac29ee8ba771b6816a131c2ca2f0c'
+PREVIOUS_ASSIGNMENTS_SHA256 = '89888d17823a691eaae3af09b88102461a0f177a0c29b8fa221dac24b2916eed'
+INHERITED_COMPONENT_SPLITS = {
+    'GRCh38:10:102918570:C:T': 'train',
+    'GRCh38:11:65779458:C:A': 'train',
+    'GRCh38:12:6935780:G:A': 'train',
+    'GRCh38:14:23522287:G:A': 'validation',
+    'GRCh38:14:75669413:T:C': 'validation',
+    'GRCh38:15:33473445:C:T': 'validation',
+    'GRCh38:19:35546813:G:A': 'validation',
+    'GRCh38:21:44235375:G:A': 'train',
+    'GRCh38:22:22548334:A:G': 'train',
+    'GRCh38:2:159349937:T:C': 'validation',
+    'GRCh38:2:213056961:T:C': 'validation',
+    'GRCh38:4:106095574:C:A': 'train',
+    'GRCh38:6:31865727:G:A': 'validation',
+    'GRCh38:6:31935916:C:T': 'train',
+}
 
 
 def has_missense(raw):
@@ -60,7 +78,7 @@ def audit_missense_scope(full, pilot):
     if fingerprint(sorted(zip(full.variant_key, full.split))) != FULL_ASSIGNMENTS_SHA256:
         raise AssertionError('Existing full-cohort split assignments changed')
     return {'pilot: every variant has an exact MC missense annotation': True,
-            'full: all earlier variant split assignments preserved': True}
+            'full: frozen July assignments preserve every shared September variant split': True}
 
 
 def digest_file(path, algorithm='sha256'):
@@ -190,7 +208,7 @@ def sample_indices(manifest, count=N_VARIANTS):
 
 def assign_split(component):
     fraction = int(seeded_hash(component, 'split'), 16) / 2**256
-    return 'train' if fraction < .70 else 'validation'
+    return INHERITED_COMPONENT_SPLITS.get(component, 'train' if fraction < .70 else 'validation')
 
 
 
@@ -413,7 +431,9 @@ def protocol_config():
             'eligibility': 'Q0 filters plus exact MC SO:0001583; retain all gene associations',
             'sampling': 'lowest SHA256(42:sample:variant_key) among eligible missense variants, no labels',
             'full_cohort_assignment_sha256': FULL_ASSIGNMENTS_SHA256,
-            'split': 'SHA256(42:split:min_full_component_variant_key), 70/30 train/validation, no labels',
+            'split': 'Preserve shared September assignments; new groups use SHA256(42:split:min_full_component_variant_key), 70/30, no labels',
+            'previous_assignment_sha256': PREVIOUS_ASSIGNMENTS_SHA256,
+            'inherited_component_splits': INHERITED_COMPONENT_SPLITS,
             'vcf_roles': {path.name: split for split, path in VCF_FILES.items()},
             'evaluation_scope': 'Development only: clinvar-test-pilot.vcf is validation; no separate untouched test set',
             'grouping': 'full Q0 SNV cohort including nonmissense bridges; genes, source IDs, loci, overlapping windows; pilot identical DNA incl RC',

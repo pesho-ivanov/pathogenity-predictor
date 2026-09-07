@@ -10,7 +10,8 @@ lists unevaluated Q8 competitors. It recomputes AUROC and average precision from
 verified validation predictions, with 1,000 component-bootstrap replicates and
 seed 42. Each method's own coverage is shown; direct comparisons use the intersection
 of scored variants. Invalid/stale inputs, missing results and blocked experiments
-are explained in the expandable details. Archived broad-SNV results never enter this comparison.
+are explained in the expandable details. Archived broad-SNV and September pilot
+results never enter the current July full-cohort comparison.
 
 `comparison/summary.json` and `methods.csv` are generated alongside
 the README section. The summary records source hashes, Q1 identity, coverage, metrics,
@@ -35,31 +36,37 @@ coverage; an optional `component` column must match Q1. Export
 
 ```json
 {
-  "q1_protocol_sha256": "SHA-256 of results/q1/protocol.json",
+  "q1_protocol_sha256": "SHA-256 of results/q1/full/protocol.json",
   "predictions_sha256": "SHA-256 of comparison_predictions.csv",
   "methods": {"score_column": "Method display name"},
   "limitations": "Selection, external training and calibration caveats"
 }
 ```
 
-The watcher discovers these exports automatically. Match the exact Q1 validation
+The watcher discovers these exports automatically and prefers the full Q1 protocol.
+An invalid or incomplete full dataset never falls back to pilot metrics. The
+comparison records the ClinVar date and cohort scope, and watches both full VCFs.
+Match the exact Q1 validation
 membership and ClinVar labels. Scores must increase with pathogenicity; zero-shot
 log likelihood scores need not be probabilities. Each `qN:score_column` ID must be
 unique, including the built-in Q2/Q8/Q9 methods. Missing data is never treated as benign.
 
 ## Scope of existing results
 
-Q1's pilot VCFs and manifests now contain **missense variants only**. Q0 now audits the downloaded **6 July 2026** snapshot. Q1/Q2 preserve the
-**5 September 2026** snapshot and assignments used to build the existing pilot.
-Q2's missense feature extraction, fitting and validation are complete, and its
-notebook is saved with all cells executed and outputs retained. The earlier broad-SNV experiment is
-preserved in `archive/broad_snv_before_missense/`.
-Q8 now surveys six missense-specific tools and evaluates AlphaMissense, REVEL,
-SIFT4G, PolyPhen-2 HumVar and EVE on
-the fixed pilot. Its earlier broader survey, notebook and implementation are preserved
-in `archive/q8_before_missense_baseline/`; the completed AlphaMissense-only notebook,
-implementation and results are preserved in `archive/q8_before_revel/`. The completed
-two-predictor run is preserved in `archive/q8_before_remaining_tools/`.
+Q0 and Q1 now use **6 July 2026** ClinVar. Q1 regenerates missense-only full and
+pilot partitions from that source, preserving the assignments of variants shared
+with the September eligible cohort. New experiments use the full July protocol.
+
+The completed Q2/Q8/Q9/Q10 notebooks and result directories still record their
+**5 September 2026 pilot** experiments. Before the input migration, their exact
+notebooks, code, protocols, model artifacts and VCF inputs were preserved in
+`archive/before_shared_july_snapshot/`. They are historical results and are excluded
+from the current comparison. A July evaluation requires a new frozen experiment;
+old fitted models or metrics must not be relabeled as July results. The method
+artifact descriptions below also document these preserved September runs.
+
+Earlier broad-SNV results remain in `archive/broad_snv_before_missense/`; preceding
+Q8 survey and tool runs remain in their existing archive directories.
 
 ## Q0 artifacts
 
@@ -97,22 +104,22 @@ all eligible missense variants. Full-dataset artifacts live under `q1/full/`:
 - `split_counts.csv`, `split_sizes.png`, `environment.json`: counts, class balance,
   split figure and CPU/dependency information.
 
-Q1 writes `data/clinvar-train.vcf` (47,230 variants) and `data/clinvar-test.vcf`
-(18,040 validation variants). These are the fixed full inputs for new experiments.
-The source snapshot is unchanged from the September pilot; all 65,270 eligible
-missense SNVs pass the sequence checks. The 70/30 target remains approximate
-because whole groups keep their earlier assignments. The test-named file includes
-previously evaluated pilot variants and is development validation.
+Q1 writes `data/clinvar-train.vcf` (**46,888 variants**) and
+`data/clinvar-test.vcf` (**17,927 validation variants**). All
+**64,815 eligible July missense SNVs** pass the sequence checks.
 
-Existing model outputs and the README comparison retain their verified pilot
-cohort. Full-dataset model experiments require their own fitting and result
-provenance; the old metrics are not relabeled. The earlier Q1 notebook and parent
-protocol are preserved in `archive/before_full_missense/`.
+The source is **6 July 2026**, shared with Q0. The 70/30 target remains approximate
+because variants shared with September preserve their earlier group assignments.
+The test-named file includes previously evaluated variants and is development
+validation. The README comparison uses this full July cohort and rejects old
+pilot metrics. New model experiments require their own fitting and provenance.
 
-## Q1 artifacts: preserved pilot
+## Q1 artifacts: July pilot and grouping cohort
 
-The preserved [pilot implementation](../src/q1.py), also used to reconstruct the
-full workflow's parent cohort, writes to `notebooks/results/q1/`:
+The [pilot implementation](../src/q1.py), used to reconstruct the full workflow's
+parent grouping cohort, now also reads July and writes to `notebooks/results/q1/`.
+The September pilot implementation and outputs are preserved in
+`archive/before_shared_july_snapshot/`.
 
 - `protocol.json`: pinned inputs, sampling/grouping rules, split implementation
   hash, artifact checksums and hashes of both shared VCFs. Frozen before fitting.
@@ -126,16 +133,19 @@ full workflow's parent cohort, writes to `notebooks/results/q1/`:
   downstream experiments read labels from the canonical VCF files in `data/`.
 - `leakage_checks.json`: executable relationship, interval, sequence and missense
   eligibility audits, including preservation of all earlier split assignments.
-- `split_counts.csv`, `grouping.png`, `split_sizes.png`: explanatory diagram and split sizes.
+- Optional `split_counts.csv`, `grouping.png`, `split_sizes.png`: pilot summaries
+  produced by the pilot display helpers; Q1 now displays the full cohort instead.
 - `environment.json`: CPU runtime, package versions, seed and preparation code hash.
 
 The pilot implementation writes `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf`.
 The latter is the validation partition; there is no separate test stage.
-Q2 consumes these fixed missense partitions and verifies their hashes.
+The archived Q2 1B experiment used the September pilot; the current 7B extension
+uses the full July partitions.
 
-## Q2 artifacts: prediction
+## Q2 artifacts: archived 1B prediction
 
-[Q2](../Q2-evo2-classifier.ipynb) writes model outputs to `notebooks/results/q2/`:
+The earlier 1B Q2 workflow wrote to `notebooks/results/q2/`. Its completed
+September artifacts now remain under `archive/before_shared_july_snapshot/`:
 
 - `protocol.json`: model/checkpoint, feature construction, selection and evaluation
   settings, with hashes of the Q1 data artifacts it consumes.
@@ -156,6 +166,29 @@ It displays numeric intervals and ROC/PR curves without the horizontal method
 comparison plot. This keeps `q2.py` and the recorded experiment identities intact.
 The earlier notebook and removed plots are preserved in
 `archive/before_removing_method_axis_plots/`.
+
+## Q2 artifacts: Evo2 7B zero-shot
+
+[Q2](../Q2-evo2-classifier.ipynb) runs [q2_7b.py](../src/q2_7b.py) and writes to `q2/7b/`:
+
+- `protocol.json`: full Q1 identity, pinned 7B checkpoint and Evo2 source,
+  Vortex/FP8 runtime, fixed scoring rules and producing source hashes.
+- `preflight.json`: training-only A/B/A repeatability, strand invariance,
+  frozen parameters and unchanged FP8 scales. Batch size 1 matches the original
+  Q2 scoring; larger training-probe batches changed likelihoods and were not used.
+- `scores/*.npz`, `scores/*.json`, `score_manifest.json`: resumable 100-variant
+  batches with reference/alternate strand-mean likelihoods, negative differences,
+  exact keys, hashes and timings. All 17,927 July validation variants are scored.
+- `validation_predictions.csv`, `metrics.json`, `validation_curves.png`:
+  full-validation outcomes, AUROC/AP with component-bootstrap intervals, and
+  ROC/precision–recall plots. No September outcomes or scores enter this result.
+- `inference.log`, `model_load.log`: resumable progress and checkpoint loading.
+
+`q2/comparison_predictions.csv` and `q2/comparison_results.json` export the complete
+current validation cohort to the README, binding it to the full split protocol,
+predictions and producing code. This extension fits no classifier, scaler,
+threshold or hyperparameter. The earlier 1B classifier experiment remains linked
+from Q2 as a historical result on its separately archived September pilot.
 
 ## Q8 artifacts: missense survey and external predictors
 
@@ -306,4 +339,16 @@ variants now belong to validation; they are not an untouched holdout.
 
 `archive/before_q0_july_download/` preserves the earlier Q0 results and notebook,
 plus the Q1/Q2 protocols before adding automatic downloads. Q0 now reads the
-July snapshot; Q1/Q2 keep their September input, pilot contents and assignments.
+July snapshot. The later shared-input migration also moved Q1 to July and
+preserved the September experiment records in `archive/before_shared_july_snapshot/`.
+
+## Shared July snapshot migration
+
+`archive/before_shared_july_snapshot/` preserves the pre-migration repository
+layout for Q0/Q1 and the completed September Q2/Q8/Q9/Q10 experiments, including
+four generated VCFs, source modules, notebooks and the former README comparison.
+Large immutable Q9/Q10 artifacts are hardlinked locally to avoid copying model
+weights; do not edit them in place. `archive_manifest.json` records the source
+commit and storage policy. `split_inheritance.json` records assignment inheritance;
+`migration_audit.json` records the verified final July membership and snapshot checks.
+The uncompressed September `data/clinvar.vcf` is removed after the July rebuild.

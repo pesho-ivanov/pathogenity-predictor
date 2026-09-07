@@ -1,7 +1,7 @@
 """Q1 full missense partitions, extending the frozen pilot without reassignment.
 
-The original q1 module and its artifacts reproduce the recorded pilot experiments.
-This workflow reuses that verified cohort, removes only the sampling cap, checks
+The q1 module prepares a July pilot and a complete relationship graph.
+This workflow reuses that verified cohort, removes the sampling cap, checks
 every eligible DNA context, and publishes separately frozen full-dataset inputs.
 """
 
@@ -185,7 +185,7 @@ def load_partition_labels(split, keys):
 def prepare():
     """Reproduce the parent cohort, expand every eligible variant, audit and freeze."""
     started = time.monotonic()
-    print('Verify the pinned September inputs and original group assignments.', flush=True)
+    print(f'Verify ClinVar {q1.CLINVAR_DATE}, shared with Q0, and inherited group assignments.', flush=True)
     q1.prepare()  # Downloads and reconstructs the parent from scratch if absent.
     OUTPUT.mkdir(parents=True, exist_ok=True)
     if not (OUTPUT / 'protocol.json').exists():
@@ -236,7 +236,7 @@ def prepare():
 
 
 def settings():
-    print('All eligible missense SNVs · same September 2026 source and pilot filters · no sampling cap')
+    print(f'All eligible missense SNVs · ClinVar {q1.CLINVAR_DATE}, shared with Q0 · no sampling cap')
     print('1,024-base contexts · seed 42 · original 70/30 group assignment · CPU only')
     print('data/clinvar-train.vcf = training; data/clinvar-test.vcf = validation.')
 
@@ -279,7 +279,8 @@ def show_conclusion():
         f'**Conclusion.** The full missense dataset contains **{counts["train"]:,} training '
         f'({counts["train"] / total:.2%})** and **{counts["validation"]:,} validation '
         f'({counts["validation"] / total:.2%})** variants. Genes and checked DNA contexts stay '
-        'within one split, and all 5,000 pilot assignments are preserved. '
+        'within one split, and all July pilot assignments are preserved. '
+        'Variants shared with the archived September cohort keep their splits. '
         'Whole groups make the original 70/30 target approximate. '
         'The test-named file remains development validation; homology, shared patients '
         'and pretraining overlap are not ruled out.'))

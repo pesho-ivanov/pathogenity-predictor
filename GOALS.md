@@ -12,7 +12,10 @@ candidate; use the simplest approach justified by validation results.
   missing annotations and records without that consequence are excluded.
   Retain all gene associations for leakage checks, including when a variant has
   multiple consequence annotations. Eligibility annotations are not predictor inputs.
-- Keep the original ClinVar input intact. Full-file counts may provide context,
+- Q0 and Q1 must share the checksum-pinned 6 July 2026 input,
+  `data/clinvar_20260706.vcf`; download it when missing. Keep this original input
+  intact and do not recreate the obsolete `data/clinvar.vcf` alias. Full-file counts
+  may provide context,
   but modeling cohorts and reported performance must refer to missense variants.
 - Preserve earlier broad-SNV runs as historical records; do not describe their
   counts or scores as missense-only results. Before new experiments, define and
@@ -31,8 +34,12 @@ candidate; use the simplest approach justified by validation results.
 - New experiments must use Q1's full missense-only, fixed VCF partitions:
   `clinvar-train.vcf` for training and `clinvar-test.vcf` for validation. Apply the
   pilot's filters and original 70/30 whole-group assignment, without a sampling cap;
-  preserve every earlier variant's split. Keep the full membership and checksums fixed.
-  Retain the `*-pilot.vcf` inputs and protocols to reproduce existing pilot results;
+  preserve every earlier variant's split if it remains eligible in the selected
+  snapshot. Keep the full membership and checksums fixed within each snapshot.
+  Preserve prior snapshot inputs, protocols, implementations and completed results
+  in a dated archive before replacing generated datasets. Use current-snapshot
+  labels and eligibility; never import absent variants or labels from another release.
+  Retain archived `*-pilot.vcf` inputs and protocols to reproduce existing pilot results;
   do not present those scores as full-dataset evaluations or reuse fitted pilot
   artifacts as full-dataset results.
 - Put reusable implementation in clear Python files with explicit inputs and
@@ -82,8 +89,9 @@ candidate; use the simplest approach justified by validation results.
 - Keep notebooks short and low in code: import Python modules and use a small
   number of clear calls to execute the complete workflow. Keep important settings,
   inputs, outputs, and validation checks visible and the implementation traceable.
-- Keep notebook implementation and test Python files in `notebooks/src/`.
-  Notebook code cells should contain only imports and short calls into those files.
+- Keep notebook implementation Python files in `notebooks/src/` and unit tests
+  in the root `tests/` directory. Notebook code cells should contain only imports
+  and short calls into the implementation files.
 - Save every notebook after all nonempty code cells have executed in order from
   a fresh kernel, with execution counts and outputs retained. Remove unused empty
   cells, resolve errors, and apply this requirement to automatic notebook updates.
