@@ -23,7 +23,7 @@ class ComparisonTests(unittest.TestCase):
         self.results = self.root / 'notebooks/results'
         (self.root / 'notebooks/src').mkdir(parents=True)
         self.dump('notebooks/src/q8_catalog.json', c.read_json(c.ROOT / 'notebooks/src/q8_catalog.json'))
-        for name in ['q2.py', 'q8_baseline.py', 'q9.py']:
+        for name in ['q2.py', 'q8_baseline.py', 'q8_revel.py', 'q8_remaining.py', 'q8_dbnsfp.py', 'q9.py']:
             (self.root / 'notebooks/src' / name).write_text('# fixture\n')
         self.source_notebook = self.root / 'notebooks/Q8-existing-tools.ipynb'
         nbformat.write(nbformat.v4.new_notebook(), self.source_notebook)
@@ -90,10 +90,87 @@ class ComparisonTests(unittest.TestCase):
                      'implementation_sha256': c.digest(self.root / 'notebooks/src/q2.py')}},
             'predictions_sha256': c.digest(directory / 'validation_predictions.csv')})
 
+    def revel(self):
+        directory = self.results / 'q8/revel'
+        directory.mkdir(parents=True, exist_ok=True)
+        self.pilot.drop(columns='MC').assign(label=[0, 1, 0, 1, 0, 1],
+            revel=[.1, .9, .1, .9, .2, np.nan]).to_csv(directory / 'pilot_evaluation.csv', index=False)
+        for name in ['baseline_protocol.json', 'validation_metrics.json']:
+            self.dump(f'notebooks/results/q8/revel/{name}', {})
+        self.dump('notebooks/results/q8/revel/baseline_provenance.json', {
+            'q1_protocol_sha256': c.digest(self.results / 'q1/protocol.json'), 'q1_vcf_sha256': self.vcfs,
+            'implementation_sha256': c.digest(self.root / 'notebooks/src/q8_revel.py'),
+            'shared_evaluation_sha256': c.digest(self.root / 'notebooks/src/q8_baseline.py'),
+            'artifacts': {name: c.digest(directory / name) for name in
+                          ['pilot_evaluation.csv', 'validation_metrics.json', 'baseline_protocol.json']}})
+
+    def test_revel_updates_catalog_row_independently_of_alphamissense(self):
+        self.revel()
+        result = c.collect(self.root, repetitions=10)
+        rows = {r['id']: r for r in result['methods']}
+        self.assertEqual(len(rows), 9)
+        self.assertEqual(rows['q8:REVEL']['covered'], 3)
+        self.assertEqual(rows['q8:REVEL']['metrics']['auroc']['value'], 1)
+        self.assertNotIn('metrics', rows['q8:AlphaMissense'])
+        self.q8()
+        self.q2()
+        result, section = c.refresh(self.root, repetitions=10)
+        self.assertEqual(len(result['common']), 3)
+        self.assertIn('| REVEL | [Q8]', section)
+        self.assertIn('notebooks/results/q8/revel/pilot_evaluation.csv', c.source_signature(self.root))
+        # A corrupt REVEL export must not hide the independently verified AlphaMissense result.
+        (self.results / 'q8/revel/pilot_evaluation.csv').write_text('changed')
+        result = c.collect(self.root, repetitions=10)
+        rows = {r['id']: r for r in result['methods']}
+        self.assertNotIn('metrics', rows['q8:REVEL'])
+        self.assertIn('metrics', rows['q8:AlphaMissense'])
+        self.assertIn('Q8 REVEL', result['errors'])
+
+    def test_changed_revel_implementation_invalidates_only_revel(self):
+        self.revel()
+        self.q8()
+        (self.root / 'notebooks/src/q8_revel.py').write_text('# changed\n')
+        result = c.collect(self.root, repetitions=10)
+        rows = {r['id']: r for r in result['methods']}
+        self.assertNotIn('metrics', rows['q8:REVEL'])
+        self.assertIn('metrics', rows['q8:AlphaMissense'])
+
+    def test_dbnsfp_tools_and_primate_access_are_independent(self):
+        for tool in ['SIFT4G', 'PolyPhen-2', 'EVE']:
+            slug, _, _ = c.Q8_EXPORTS[tool]
+            directory = self.results / 'q8' / slug
+            directory.mkdir(parents=True, exist_ok=True)
+            self.pilot.drop(columns='MC').assign(label=[0, 1, 0, 1, 0, 1],
+                score=[.1, .9, .1, .9, .2, np.nan]).to_csv(directory / 'pilot_evaluation.csv', index=False)
+            for name in ['baseline_protocol.json', 'validation_metrics.json']:
+                (directory / name).write_text('{}')
+            self.dump(f'notebooks/results/q8/{slug}/baseline_provenance.json', {
+                'q1_protocol_sha256': c.digest(self.results / 'q1/protocol.json'), 'q1_vcf_sha256': self.vcfs,
+                'implementation_sha256': c.digest(self.root / 'notebooks/src/q8_remaining.py'),
+                'shared_evaluation_sha256': c.digest(self.root / 'notebooks/src/q8_baseline.py'),
+                'acquisition_implementation_sha256': c.digest(self.root / 'notebooks/src/q8_dbnsfp.py'),
+                'method': {'tool': tool}, 'artifacts': {name: c.digest(directory / name) for name in
+                    ['baseline_protocol.json', 'validation_metrics.json', 'pilot_evaluation.csv']}})
+        self.dump('notebooks/results/q8/primateai3d/access_status.json', {
+            'status': 'blocked', 'reason': 'Licensed data unavailable',
+            'q1_protocol_sha256': c.digest(self.results / 'q1/protocol.json')})
+        result = c.collect(self.root, repetitions=10)
+        rows = {r['id']: r for r in result['methods']}
+        self.assertEqual(len(rows), 9)
+        for tool in ['SIFT4G', 'PolyPhen-2', 'EVE']:
+            self.assertEqual(rows[f'q8:{tool}']['metrics']['auroc']['value'], 1)
+        self.assertEqual(rows['q8:PrimateAI-3D']['status'], 'Blocked')
+        self.assertNotIn('metrics', rows['q8:PrimateAI-3D'])
+        self.assertFalse(result['errors'])
+        (self.results / 'q8/eve/pilot_evaluation.csv').write_text('corrupt')
+        rows = {r['id']: r for r in c.collect(self.root, repetitions=10)['methods']}
+        self.assertNotIn('metrics', rows['q8:EVE'])
+        self.assertIn('metrics', rows['q8:SIFT4G'])
+
     def test_missing_results_stay_missing_and_archives_are_ignored(self):
         self.dump('notebooks/results/archive/q2/validation_report.json', {'auroc': 1})
         result = c.collect(self.root, repetitions=10)
-        self.assertEqual(len(result['methods']), 13)
+        self.assertEqual(len(result['methods']), 9)
         self.assertTrue(all('metrics' not in row for row in result['methods']))
         self.assertFalse(result['common'])
 
@@ -104,8 +181,9 @@ class ComparisonTests(unittest.TestCase):
         rows = {row['id']: row for row in result['methods']}
         self.assertEqual(rows['q8:AlphaMissense']['covered'], 3)
         self.assertEqual(rows['q2:zero_shot']['metrics']['auroc']['value'], 1)
-        self.assertEqual(rows['q2:sequence']['metrics']['auroc']['value'], 0)
-        self.assertEqual(len(result['common']), 4)
+        self.assertNotIn('q2:evo', rows)
+        self.assertNotIn('q2:sequence', rows)
+        self.assertEqual(len(result['common']), 2)
         self.assertTrue(all(row['total'] == 3 for row in result['common'].values()))
 
     def test_shared_subset_is_recomputed_not_copied(self):
@@ -143,6 +221,27 @@ class ComparisonTests(unittest.TestCase):
         self.assertIsNone(result['cohort'])
         self.assertTrue(all(row['status'] == 'Unavailable' for row in result['methods']))
 
+    def test_custom_export_rejects_changed_source_or_model_artifact(self):
+        self.export()
+        source = self.root / 'notebooks/src/q2.py'
+        artifact = self.dump('notebooks/results/q10/selection.json', {'C': 1.0})
+        spec_path = self.results / 'q10/comparison_results.json'
+        spec = c.read_json(spec_path)
+        spec.update(sources={'notebooks/src/q2.py': c.digest(source)},
+                    artifacts={'selection.json': c.digest(artifact)})
+        spec_path.write_text(json.dumps(spec))
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('metrics', next(row for row in result['methods'] if row['id'] == 'q10:score'))
+        self.assertIn(str(artifact.relative_to(self.root)), c.source_signature(self.root))
+        for path in [source, artifact]:
+            with self.subTest(path=path):
+                original = path.read_bytes()
+                path.write_text('changed')
+                result = c.collect(self.root, repetitions=10)
+                self.assertIn('Checksum mismatch', result['errors']['Q10'])
+                self.assertNotIn('metrics', next(row for row in result['methods'] if row['id'] == 'q10:score'))
+                path.write_bytes(original)
+
     def test_duplicate_unknown_and_cross_partition_keys_rejected(self):
         context = c.load_context(self.root)
         for keys in [['v1', 'v1', 'v3', 'v4'], ['t1', 'v2', 'v3', 'v4']]:
@@ -155,13 +254,14 @@ class ComparisonTests(unittest.TestCase):
         rows = [r for r in result['methods'] if r['question'] == 'Q9']
         self.assertTrue(all(r['status'] == 'Blocked' and 'metrics' not in r for r in rows))
 
-    def test_completed_q9_reads_all_four_methods(self):
+    def test_completed_q9_reads_selected_methods(self):
         directory = self.results / 'q9'
         directory.mkdir()
         identity = {'parent_protocol_sha256': c.digest(self.results / 'q1/protocol.json'),
                     'sources': {'notebooks/src/q9.py': c.digest(self.root / 'notebooks/src/q9.py')}}
         np.savez(directory / 'validation_predictions.npz', keys=self.labels.variant_key.to_numpy(dtype=str),
-                 labels=self.labels.label.to_numpy(), **{name: [.1, .9, .2, .8] for name in c.Q9_METHODS})
+                 labels=self.labels.label.to_numpy(),
+                 **{name: [.1, .9, .2, .8] for name in ['fine_tuned', 'frozen', 'zero_shot', 'sequence']})
         self.dump('notebooks/results/q9/readiness.json', {'status': 'passed', 'identity': identity})
         self.dump('notebooks/results/q9/metrics.json', {'status': 'complete', 'identity': identity,
                   'artifacts': {'validation_predictions.npz': c.digest(directory / 'validation_predictions.npz')}})
@@ -193,7 +293,7 @@ class ComparisonTests(unittest.TestCase):
             try:
                 self.wait_for(lambda: c.SECTION_END in readme.read_text())
                 initial = readme.read_text()
-                self.assertIn('| q10 predictor | Q10 | 4 / 4 | 0.750', initial)
+                self.assertIn('| q10 predictor | Q10 | — | 4 / 4 | 0.750', initial)
                 # Preserve prose edited while the watcher is running.
                 edited = initial.replace('Keep these notes.', 'Keep these revised notes.')
                 readme.write_text(edited)
@@ -205,13 +305,13 @@ class ComparisonTests(unittest.TestCase):
                     result = c.read_json(self.results / 'comparison/summary.json')
                     row = next(r for r in result['methods'] if r['id'] == 'q10:score')
                     return (row['metrics']['auroc']['value'] == 1 and
-                            '| q10 predictor | Q10 | 4 / 4 | 1.000' in readme.read_text())
+                            '| q10 predictor | Q10 | — | 4 / 4 | 1.000' in readme.read_text())
                 self.wait_for(latest_score)
                 self.assertTrue(readme.read_text().startswith('# Project\n\nIntroduction.\n\n'))
                 self.assertTrue(readme.read_text().endswith('## Research questions\n\nKeep these revised notes.\n'))
                 self.assertEqual(readme.read_text().count(c.SECTION_START), 1)
                 self.assertNotIn('| Status |', readme.read_text())
-                self.assertTrue((self.root / 'assets/comparison.png').exists())
+                self.assertFalse((self.root / 'assets/comparison.png').exists())
                 self.assertFalse((self.root / 'comparison.ipynb').exists())
                 signature = c.source_signature(self.root)
                 self.assertNotIn('README.md', signature)
@@ -246,9 +346,9 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(metadata['bootstrap'], result['bootstrap'])
         self.assertEqual(metadata['source_errors'], result['errors'])
         self.assertIn('**Conclusion.**', readme)
-        image = self.root / 'assets/comparison.png'
-        self.assertTrue(image.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'))
-        self.assertEqual(image.read_bytes(), (self.results / 'comparison/metrics.png').read_bytes())
+        self.assertNotIn('![', readme)
+        self.assertFalse((self.root / 'assets/comparison.png').exists())
+        self.assertFalse((self.results / 'comparison/metrics.png').exists())
 
     def test_readme_rejects_malformed_markers_without_overwriting(self):
         readme = self.root / 'README.md'

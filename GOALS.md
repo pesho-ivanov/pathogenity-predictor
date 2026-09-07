@@ -26,12 +26,15 @@ candidate; use the simplest approach justified by validation results.
 - Keep dependencies, abstractions, and model complexity minimal.
 - Keep one shared `requirements.txt` at the project root for all notebooks.
 - Store external inputs in `data/`. Q1 also writes the shared experiment inputs
-  `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf` there. Store other generated
-  files under `notebooks/results/`, organized by research question, except the
-  small README comparison plot in `assets/comparison.png`.
-- All subsequent experiments must use Q1's missense-only, fixed VCF partitions: `clinvar-train-pilot.vcf`
-  for training and `clinvar-test-pilot.vcf` for validation. Keep their membership and
-  checksums fixed; do not resample or move variants between the files.
+  `data/clinvar-train.vcf` and `data/clinvar-test.vcf` there. Store other generated
+  files under `notebooks/results/`, organized by research question.
+- New experiments must use Q1's full missense-only, fixed VCF partitions:
+  `clinvar-train.vcf` for training and `clinvar-test.vcf` for validation. Apply the
+  pilot's filters and original 70/30 whole-group assignment, without a sampling cap;
+  preserve every earlier variant's split. Keep the full membership and checksums fixed.
+  Retain the `*-pilot.vcf` inputs and protocols to reproduce existing pilot results;
+  do not present those scores as full-dataset evaluations or reuse fitted pilot
+  artifacts as full-dataset results.
 - Put reusable implementation in clear Python files with explicit inputs and
   outputs. Make data preparation, feature construction, split assignment,
   training, and evaluation easy to inspect.
@@ -46,7 +49,7 @@ candidate; use the simplest approach justified by validation results.
 
 - Prioritize credible evaluation over higher scores. Freeze training and
   validation before fitting any learned preprocessing or model. The current
-  workflow has no separate test stage; the filename `clinvar-test-pilot.vcf` denotes
+  workflow has no separate test stage; the filename `clinvar-test.vcf` denotes
   validation, not an untouched final test set.
 - Keep duplicate variants, alternate alleles at the same locus, overlapping
   sequence contexts, and related groups within one split. Keep genes disjoint
@@ -67,7 +70,7 @@ candidate; use the simplest approach justified by validation results.
 
 - Present explanations and results as Jupyter notebooks (`.ipynb`) in `notebooks/`.
 - Keep the aggregate comparison in the root `README.md`. Refresh its marked
-  section and plot when source notebooks or result exports change; compare only
+  evaluation tables when source notebooks or result exports change; compare only
   matching frozen cohorts and show missing/blocked methods explicitly.
 - Name notebooks with their question number and one or two descriptive keywords,
   separated by hyphens, for example `Q0-clinvar-summary.ipynb`.
@@ -85,6 +88,8 @@ candidate; use the simplest approach justified by validation results.
   a fresh kernel, with execution counts and outputs retained. Remove unused empty
   cells, resolve errors, and apply this requirement to automatic notebook updates.
 - Use brief descriptions and favor informative images and plots.
+- Do not include plots with methods on the Y-axis in the README or Q2 notebook;
+  show the comparison metrics and confidence intervals as numbers instead.
 - Use tables sparingly; preferably hide detailed tables in expandable dropdowns.
 - End every notebook with a short conclusion that directly answers its research
   question, supported by the main result and any essential uncertainty or limitation.

@@ -1,4 +1,4 @@
-"""Q8: render a cited missense-tool survey; q8_baseline handles pilot scoring."""
+"""Q8 missense survey; companion modules benchmark the frozen pilot."""
 
 from datetime import date
 import hashlib
@@ -71,7 +71,7 @@ def load_survey():
     survey = json.loads(CATALOG.read_text())
     check_survey(survey)
     print(f'{len(survey["tools"])} representative tools · reviewed {survey["reviewed_on"]} · CPU only · offline')
-    print('The catalog is bundled offline; the later AlphaMissense benchmark acquires external scores.')
+    print('The catalog is bundled offline; five benchmarks acquire external scores. PrimateAI-3D requires licensed data access.')
     return survey
 
 
@@ -94,14 +94,14 @@ def show_landscape(survey):
     tools = survey['tools']
     fig, ax = plt.subplots(figsize=(10, 3.7), layout='constrained')
     for y, tool in enumerate(tools):
-        selected = tool['name'] == 'AlphaMissense'
+        selected = tool['name'] != 'PrimateAI-3D'
         if selected:
             ax.axhspan(y - .42, y + .42, color='#e3f1eb')
         ax.text(.01, y, tool['name'], va='center', fontweight='bold', color='#17634d' if selected else '#263442')
         ax.text(.22, y, tool['method'], va='center', fontsize=10)
     ax.set(xlim=(0, 1), ylim=(len(tools) - .4, -.6))
     ax.axis('off')
-    ax.set_title('Six missense predictors · AlphaMissense selected for pilot lookup', loc='left', pad=15, fontweight='bold')
+    ax.set_title('Six missense predictors · five accessible pilot benchmarks', loc='left', pad=15, fontweight='bold')
     OUTPUT.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUTPUT / 'tool_landscape.png', dpi=160)
     plt.show()

@@ -2,7 +2,7 @@
   "reviewed_on": "2026-09-07",
   "scope": "Six representative missense-specific predictors for human germline SNVs; not an exhaustive catalog or comparative performance ranking.",
   "method": "Manual review of developer documentation, published methods and release/source metadata. Facts and URLs are bundled to reproduce this dated survey offline; rerunning does not refresh the literature.",
-  "version_policy": "Releases identify reviewed software, score exports or publications. Pinned source revisions identify documentation/code. The accompanying benchmark uses the pinned 2023 AlphaMissense hg38 score archive.",
+  "version_policy": "Releases identify reviewed software, score exports or publications. Pinned source revisions identify documentation/code. Benchmarks pin the 2023 AlphaMissense hg38 archive, REVEL v1.3 and the GRR distribution of dbNSFP4.9a; PrimateAI-3D awaits licensed data access.",
   "compute_policy": "Compute entries summarize documented execution routes. CPU lookup guidance is a workflow inference, not a runtime benchmark.",
   "sources": {
     "sift_code": {
@@ -84,28 +84,45 @@
       "title": "DeepMind AlphaMissense — pinned hg38 score archive metadata",
       "url": "https://storage.googleapis.com/storage/v1/b/dm_alphamissense/o/AlphaMissense_hg38.tsv.gz?generation=1691073413649109",
       "reviewed_on": "2026-09-07"
+    },
+    "revel_scores": {
+      "title": "Rothstein and Sieh — REVEL v1.3 score release and checksums",
+      "url": "https://zenodo.org/records/7072866",
+      "reviewed_on": "2026-09-07"
+    },
+    "dbnsfp_grr": {
+      "title": "GRR — indexed GRCh38 dbNSFP4.9a release, preparation and checksums",
+      "url": "https://grr.iossifovlab.com/hg38/scores/dbNSFP4.9a/index.html",
+      "reviewed_on": "2026-09-07"
+    },
+    "dbnsfp_fields": {
+      "title": "dbNSFP4.9a — score definitions, directions and transcript mappings",
+      "url": "https://grr.iossifovlab.com/hg38/scores/dbNSFP4.9a/dbNSFP4.9a.readme.txt",
+      "reviewed_on": "2026-09-07"
     }
   },
   "tools": [
     {
       "name": "SIFT4G",
-      "release": "2016 method; reviewed source revision pinned",
+      "release": "2016 method; dbNSFP4.9a SIFT4G_score field for this benchmark",
       "targets": [
         "Missense impact"
       ],
       "method": "Protein sequence conservation and tolerated amino-acid substitutions.",
       "variants": "Missense substitutions; transcript/protein mapping is required for genomic SNVs.",
-      "inputs": "Protein FASTA queries and a homologous protein sequence database.",
-      "access": "Public local implementation; annotation databases must match the selected species and reference.",
+      "inputs": "Exact GRCh38 alleles for published-score lookup; protein queries and homologous sequences for new scoring.",
+      "access": "Public local implementation; annotation databases must match the selected species and reference. Q8 retrieves exact GRCh38 allele scores from the public indexed GRR dbNSFP4.9a distribution.",
       "compute": "CPU supported; optional CUDA acceleration for database construction/scoring.",
-      "license": "Implementation: GPL-3.0; external sequence database terms are separate.",
+      "license": "Implementation: GPL-3.0; external sequence database terms are separate. The benchmark uses the academic dbNSFP4.9a branch with upstream restrictions.",
       "training": "Evolutionary protein sequence alignments; no clinical-label fitting in the core scoring method.",
       "clinvar": "This review does not establish independence of every distributed database or later benchmark.",
-      "caution": "A protein-impact score is not a calibrated disease probability; missing mappings and alignments limit applicability.",
+      "caution": "A protein-impact score is not a calibrated disease probability; missing mappings and alignments limit applicability. Q8 orients raw scores as 1 - score and takes the maximum over matches.",
       "sources": [
         "sift_code",
         "sift_license",
-        "sift_paper"
+        "sift_paper",
+        "dbnsfp_grr",
+        "dbnsfp_fields"
       ],
       "reviewed_on": "2026-09-07",
       "source_revision": {
@@ -116,37 +133,39 @@
     },
     {
       "name": "PolyPhen-2",
-      "release": "2.2.3r408; choose HumDiv or HumVar explicitly",
+      "release": "2.2.3 method; HumVar model, dbNSFP4.9a Polyphen2_HVAR_score field",
       "targets": [
         "Missense impact"
       ],
       "method": "Supervised protein sequence/structure features.",
       "variants": "Missense substitutions in supported proteins.",
       "inputs": "Protein accession, residue position and amino-acid substitution; genomic mapping is also available.",
-      "access": "Web interface, standalone software and precomputed annotations.",
+      "access": "Web interface, standalone software and precomputed annotations. Q8 retrieves exact GRCh38 allele scores from the public indexed GRR dbNSFP4.9a distribution.",
       "compute": "CPU lookup or local scoring with protein/structure databases.",
-      "license": "Academic instruction/research use; other use requires the authors' commercial license.",
+      "license": "Academic instruction/research use; other use requires the authors' commercial license. The benchmark uses the academic dbNSFP4.9a branch with upstream restrictions.",
       "training": "HumDiv/HumVar include known disease/function variants and neutral comparators.",
       "clinvar": "Disease variants can recur in ClinVar even though the original training sources were different.",
-      "caution": "Audit the exact model and training overlap; useful as a historical comparator, not an assumed independent reference.",
+      "caution": "Audit the exact model and training overlap; useful as a historical comparator, not an assumed independent reference. HumVar was selected before evaluating the pilot; use the maximum matching raw score.",
       "sources": [
         "polyphen_download",
         "polyphen_training",
-        "polyphen_paper"
+        "polyphen_paper",
+        "dbnsfp_grr",
+        "dbnsfp_fields"
       ],
       "reviewed_on": "2026-09-07",
       "source_revision": null
     },
     {
       "name": "REVEL",
-      "release": "2016 model; official score export updated 2021-05-03",
+      "release": "2016 model; pinned v1.3 score export dated 2021-05-03 (Zenodo 7072866)",
       "targets": [
         "Missense impact"
       ],
-      "method": "Ensemble of 13 constituent prediction/conservation tools.",
+      "method": "Random forest combining scores from 13 prediction/conservation tools.",
       "variants": "Missense SNVs with valid protein/transcript mappings.",
       "inputs": "Genomic alleles plus transcript/amino-acid mapping; some lifted GRCh38 positions are missing.",
-      "access": "Downloadable precomputed score files.",
+      "access": "Precomputed v1.3 scores at Zenodo record 7072866; downloaded and evaluated by Q8.",
       "compute": "CPU lookup; relatively little work after downloading and indexing scores.",
       "license": "Scores: non-commercial use; contact authors for other uses.",
       "training": "HGMD disease variants and rare neutral variants; constituents bring their own training histories.",
@@ -154,7 +173,8 @@
       "caution": "Use only with an explicit overlap audit and report mapping failures rather than treating absent scores as benign.",
       "sources": [
         "revel_method",
-        "revel_download"
+        "revel_download",
+        "revel_scores"
       ],
       "reviewed_on": "2026-09-07",
       "source_revision": null
@@ -190,21 +210,23 @@
     },
     {
       "name": "EVE",
-      "release": "2021 method; reviewed source revision pinned",
+      "release": "2021 method; dbNSFP4.9a EVE_score field for this benchmark",
       "targets": [
         "Missense impact"
       ],
       "method": "Protein-family generative model followed by mixture-model scoring.",
       "variants": "Missense substitutions for proteins and positions covered by the released models.",
       "inputs": "Protein/residue mapping for lookup; a protein-family MSA for new model fitting.",
-      "access": "Public score browser/downloads and code for rebuilding models.",
+      "access": "Public score browser/downloads and code for rebuilding models. Q8 retrieves exact GRCh38 allele scores from the public indexed GRR dbNSFP4.9a distribution.",
       "compute": "CPU lookup; fitting new protein-family models requires MSA preparation and substantial compute.",
-      "license": "Code: MIT; confirm the terms of any separately downloaded dataset.",
+      "license": "Code: MIT; confirm the terms of any separately downloaded dataset. The benchmark uses the academic dbNSFP4.9a branch with upstream restrictions.",
       "training": "Evolutionary MSAs; the core workflow requires no clinical labels.",
       "clinvar": "ClinVar labels are supplied for evaluation, separate from MSA model fitting.",
-      "caution": "Coverage and homologous-sequence exposure still matter; external clinical calibration would need a separate audit.",
+      "caution": "Coverage and homologous-sequence exposure still matter; external clinical calibration would need a separate audit. Q8 uses continuous scores without category or uncertainty filtering.",
       "sources": [
-        "eve_code"
+        "eve_code",
+        "dbnsfp_grr",
+        "dbnsfp_fields"
       ],
       "reviewed_on": "2026-09-07",
       "source_revision": {
@@ -222,7 +244,7 @@
       "method": "Protein-structure and evolutionary model informed by primate variation.",
       "variants": "Human missense substitutions.",
       "inputs": "Score lookup by genomic/protein mapping; local models use structure and evolutionary features.",
-      "access": "Browser and downloadable scores after an academic license agreement; source repository available.",
+      "access": "Score/model downloads require a signed license agreement and an emailed link. No approved link or licensed local files were available for Q8; this benchmark remains blocked.",
       "compute": "CPU score lookup; new predictions require the model and structure/sequence resources.",
       "license": "Scores: academic non-profit research agreement; commercial scores/models require separate licensing.",
       "training": "Common human/primate variation with structural and evolutionary learning objectives.",
@@ -251,11 +273,11 @@
   ],
   "evaluation_rules": [
     "Retain Q1 membership and checksums in data/clinvar-train-pilot.vcf and data/clinvar-test-pilot.vcf; the latter is validation, with no independent test set.",
-    "Match only exact GRCh38 alleles. Use the maximum continuous score over matching transcript annotations, fixed before loading outcomes. Retain all annotations and report coverage by split and class.",
+    "Match only exact GRCh38 alleles. REVEL uses grch38_pos without hg19 fallback. SIFT4G uses 1 minus its raw score; PolyPhen-2 uses HumVar; EVE uses continuous scores without category filtering. Aggregate the maximum damaging-direction score across exact-allele annotations, fixed before outcomes. Retain raw annotations and report coverage by split and class.",
     "Leave unmatched variants unscored. Ranking metrics apply only to covered validation variants; no benign imputation or claims about missing variants.",
     "ClinVar remains the ground truth. Clinical assertions and label-derived annotations never enter score lookup; no fitting, threshold tuning or recalibration occurs.",
-    "Rerun Q1 full-cohort and sequence audits. They certify local partition separation, not independence of AlphaMissense protein/evolutionary data or its ClinVar calibration set.",
+    "Rerun Q1 full-cohort and sequence audits. They certify local partition separation, not independence of external calibration, clinical training variants or evolutionary sequence inputs.",
     "Use 1000 component-bootstrap replicates with seed 42 for percentile 95% intervals. These are development results, not an independent clinical validation or tool ranking."
   ],
-  "conclusion": "The missense catalog covers SIFT4G, PolyPhen-2, REVEL, AlphaMissense, EVE and PrimateAI-3D. AlphaMissense is selected as the practical reference predictor using its public GRCh38 score release. ClinVar remains the ground truth. Coverage and validation performance are measured in the accompanying benchmark; clinical calibration overlap remains unresolved."
+  "conclusion": "The missense catalog covers six predictors. AlphaMissense is the reference, with REVEL, SIFT4G, PolyPhen-2 HumVar and EVE as additional pilot comparators. PrimateAI-3D awaits licensed data access. ClinVar remains the ground truth; coverage and external training/calibration exposure limit comparisons."
 }

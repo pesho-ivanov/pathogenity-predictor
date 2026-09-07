@@ -57,20 +57,21 @@ def ensure_scores(path=ARCHIVE, source=None):
     """Download atomically when absent; fail on corrupt existing/downloaded bytes."""
     source = SOURCE if source is None else source
     path = Path(path)
+    tool = source.get('tool', 'AlphaMissense')
 
     def verify(candidate):
         if candidate.stat().st_size != source['bytes']:
-            raise ValueError('AlphaMissense archive size mismatch')
+            raise ValueError(f'{tool} archive size mismatch')
         if q1.digest_file(candidate, 'md5') != source['md5']:
-            raise ValueError('AlphaMissense archive checksum mismatch')
+            raise ValueError(f'{tool} archive checksum mismatch')
 
     if path.exists():
         verify(path)
-        print('Reusing verified AlphaMissense archive.', flush=True)
+        print(f'Reusing verified {tool} archive.', flush=True)
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_name(path.name + '.partial')
-    print(f'Downloading AlphaMissense ({source["bytes"] / 1e6:.0f} MB) to {path}.', flush=True)
+    print(f'Downloading {tool} ({source["bytes"] / 1e6:.0f} MB) to {path}.', flush=True)
     try:
         with urllib.request.urlopen(source['url'], timeout=60) as response, partial.open('wb') as output:
             total, reported = 0, 0
@@ -154,10 +155,10 @@ def lookup_scores(path, variant_keys):
     return scores, annotation_frame, {'source_rows_scanned': rows, 'archive_header': comments}
 
 
-def metric_summary(validation, repetitions=1000, seed=42):
+def metric_summary(validation, repetitions=1000, seed=42, score_column='am_pathogenicity'):
     """Component bootstrap, including uncovered members before coverage selection."""
     labels = validation.label.to_numpy(dtype=int)
-    scores = validation.am_pathogenicity.to_numpy(dtype=float)
+    scores = validation[score_column].to_numpy(dtype=float)
     covered = np.isfinite(scores)
     if not set(labels).issubset({0, 1}) or (covered & ((scores < 0) | (scores > 1))).any():
         raise ValueError('Invalid labels or scores')
@@ -188,7 +189,7 @@ def metric_summary(validation, repetitions=1000, seed=42):
     return result
 
 
-def evaluate(pilot, scores):
+def evaluate(pilot, scores, score_column='am_pathogenicity'):
     """Load outcomes only after genomic lookup, preserving manifest order."""
     if scores.variant_key.tolist() != pilot.variant_key.tolist():
         raise ValueError('Scores must cover each ordered pilot key exactly once')
@@ -203,11 +204,12 @@ def evaluate(pilot, scores):
             selected = table[table.split.eq(split)]
             if label is not None:
                 selected = selected[selected.label.eq(label)]
-            covered = int(selected.am_pathogenicity.notna().sum())
+            covered = int(selected[score_column].notna().sum())
             coverage.append({'split': split, 'class': name, 'total': len(selected),
                              'covered': covered, 'missing': len(selected) - covered,
                              'coverage_fraction': covered / len(selected) if len(selected) else None})
-    report = metric_summary(table[table.split.eq('validation')], POLICY['bootstrap_repetitions'], POLICY['seed'])
+    report = metric_summary(table[table.split.eq('validation')], POLICY['bootstrap_repetitions'],
+                            POLICY['seed'], score_column)
     return table, pd.DataFrame(coverage), report
 
 
@@ -250,7 +252,7 @@ def run_baseline():
     return report
 
 
-def show_results(table, coverage, report):
+def show_results(table, coverage, report, tool='AlphaMissense', score_column='am_pathogenicity', output=OUTPUT):
     from .q8 import details
     fig, ax = plt.subplots(figsize=(7, 3), layout='constrained')
     overall = coverage[coverage['class'].eq('all')]
@@ -258,16 +260,16 @@ def show_results(table, coverage, report):
     ax.barh(overall.split, overall.missing, left=overall.covered, color='#c9cfd4', label='Missing')
     for i, row in enumerate(overall.itertuples()):
         ax.text(20, i, f'{row.covered:,}/{row.total:,} ({row.coverage_fraction:.1%})', va='center', color='white')
-    ax.set(xlabel='Frozen pilot variants', title='AlphaMissense exact-allele coverage')
+    ax.set(xlabel='Frozen pilot variants', title=f'{tool} exact-allele coverage')
     ax.legend(loc='lower right')
-    fig.savefig(OUTPUT / 'coverage.png', dpi=160)
+    fig.savefig(output / 'coverage.png', dpi=160)
     plt.show()
     plt.close(fig)
     details('Coverage by partition and ClinVar class', coverage.to_html(index=False, border=0))
-    validation = table[table.split.eq('validation') & table.am_pathogenicity.notna()]
+    validation = table[table.split.eq('validation') & table[score_column].notna()]
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout='constrained')
     if report['status'] == 'ok':
-        labels, scores = validation.label, validation.am_pathogenicity
+        labels, scores = validation.label, validation[score_column]
         fpr, tpr, _ = roc_curve(labels, scores)
         precision, recall, _ = precision_recall_curve(labels, scores)
         axes[0].plot(fpr, tpr, color='#28866b')
@@ -278,11 +280,11 @@ def show_results(table, coverage, report):
     else:
         for ax in axes:
             ax.text(.5, .5, 'Metrics unavailable: both scored classes required', ha='center', wrap=True)
-    axes[0].set(xlabel='False positive rate', ylabel='True positive rate', title='Validation ROC')
-    axes[1].set(xlabel='Recall', ylabel='Precision', title='Validation precision–recall')
+    axes[0].set(xlabel='False positive rate', ylabel='True positive rate', title=f'{tool} validation ROC')
+    axes[1].set(xlabel='Recall', ylabel='Precision', title=f'{tool} validation precision–recall')
     for ax in axes:
         ax.set(xlim=(0, 1), ylim=(0, 1.02))
-    fig.savefig(OUTPUT / 'validation_curves.png', dpi=160)
+    fig.savefig(output / 'validation_curves.png', dpi=160)
     plt.show()
     plt.close(fig)
 

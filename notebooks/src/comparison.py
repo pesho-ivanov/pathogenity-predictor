@@ -7,14 +7,12 @@ Notebook saves trigger refreshes; scientific values come from exported predictio
 from datetime import datetime, timezone
 import hashlib
 import html
-import io
 import json
 from pathlib import Path
 import tempfile
 
 import numpy as np
 import pandas as pd
-from matplotlib.figure import Figure
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,14 +20,39 @@ REPETITIONS = 1000
 SEED = 42
 SECTION_START = '<!-- comparison:start -->'
 SECTION_END = '<!-- comparison:end -->'
-Q2_METHODS = {'evo': 'Evo2 + logistic regression', 'zero_shot': 'Evo2 zero-shot',
-              'sequence': 'Sequence + logistic regression'}
-Q9_METHODS = {'fine_tuned': 'Evo2 fine-tuned (BioNeMo)', 'frozen': 'Evo2 frozen head (BioNeMo)',
-              'zero_shot': 'Evo2 zero-shot (BioNeMo)', 'sequence': 'Sequence classifier (Q9)'}
+Q2_METHODS = {'zero_shot': 'Evo2 1B base zero-shot (Vortex, FP8)'}
+# One BioNeMo representative in the README; the full experiment stays in Q9.
+Q9_METHODS = {'frozen': 'Evo2 1B base frozen head (BioNeMo, BF16)',
+              'sequence': 'Sequence baseline (Evo2 1B experiment)'}
+Q8_NOTES = {
+    'AlphaMissense': 'ClinVar calibration overlap unresolved; maximum matching transcript score.',
+    'REVEL': 'HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations.',
+    'SIFT4G': 'dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited.',
+    'PolyPhen-2': 'HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar.',
+    'EVE': 'dbNSFP4.9a continuous EVE score; maximum across matches, no confidence-category filtering. Limited protein/position coverage.',
+}
+Q8_EXPORTS = {
+    'AlphaMissense': ('', 'q8_baseline.py', 'am_pathogenicity'),
+    'REVEL': ('revel', 'q8_revel.py', 'revel'),
+    'SIFT4G': ('sift4g', 'q8_remaining.py', 'score'),
+    'PolyPhen-2': ('polyphen2', 'q8_remaining.py', 'score'),
+    'EVE': ('eve', 'q8_remaining.py', 'score'),
+}
+# Original method papers for the Q8 reference predictors.
+METHOD_PAPERS = {
+    'q8:SIFT4G': '[Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123)',
+    'q8:PolyPhen-2': '[Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248)',
+    'q8:REVEL': '[Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016)',
+    'q8:AlphaMissense': '[Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492)',
+    'q8:EVE': '[Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8)',
+    'q8:PrimateAI-3D': '[Gao et al. (2023)](https://doi.org/10.1126/science.abn8197)',
+}
 SOURCE_FILES = {
     'q1': ['protocol.json', 'split_manifest.csv', 'validation_labels.csv'],
     'q2': ['protocol.json', 'validation_report.json', 'validation_predictions.csv'],
-    'q8': ['baseline_protocol.json', 'baseline_provenance.json', 'validation_metrics.json', 'pilot_evaluation.csv'],
+    'q8': [str(Path(folder) / name) for folder, _, _ in Q8_EXPORTS.values()
+           for name in ['baseline_protocol.json', 'baseline_provenance.json', 'validation_metrics.json', 'pilot_evaluation.csv']]
+          + ['primateai3d/access_status.json'],
     'q9': ['protocol.json', 'readiness.json', 'metrics.json', 'validation_predictions.npz'],
 }
 
@@ -80,6 +103,10 @@ def source_paths(root=ROOT):
         paths.add(path)
         # This is the documented filename for future notebooks' prediction exports.
         paths.add(path.with_name('comparison_predictions.csv'))
+        try:
+            paths.update(path.parent / name for name in read_json(path).get('artifacts', {}))
+        except (OSError, ValueError):
+            pass  # The collector reports malformed exports explicitly.
     return sorted(paths)
 
 
@@ -151,18 +178,26 @@ def load_q2(root, context):
     return align_predictions(pd.read_csv(directory / 'validation_predictions.csv'), context, Q2_METHODS)
 
 
-def load_q8(root, context):
-    directory = root / 'notebooks/results/q8'
+def load_q8(root, context, tool='AlphaMissense'):
+    require(tool in Q8_EXPORTS, 'Unknown Q8 score export')
+    folder, implementation, column = Q8_EXPORTS[tool]
+    directory = root / 'notebooks/results/q8' / folder
     provenance = read_json(directory / 'baseline_provenance.json')
     require(provenance['q1_protocol_sha256'] == context['protocol_sha256'] and
             provenance['q1_vcf_sha256'] == context['vcf_exports'], 'Q8 cohort is stale')
-    verified(root / 'notebooks/src/q8_baseline.py', provenance['implementation_sha256'])
+    verified(root / 'notebooks/src' / implementation, provenance['implementation_sha256'])
+    if tool != 'AlphaMissense':
+        verified(root / 'notebooks/src/q8_baseline.py', provenance['shared_evaluation_sha256'])
+    if implementation == 'q8_remaining.py':
+        verified(root / 'notebooks/src/q8_dbnsfp.py', provenance['acquisition_implementation_sha256'])
+        require(provenance['method']['tool'] == tool, 'Q8 export belongs to a different tool')
     for name in ['baseline_protocol.json', 'pilot_evaluation.csv', 'validation_metrics.json']:
         verified(directory / name, provenance['artifacts'][name])
     frame = pd.read_csv(directory / 'pilot_evaluation.csv')
     require(frame.variant_key.tolist() == context['pilot_keys'], 'Q8 pilot membership or ordering changed')
-    arrays = align_predictions(frame[frame.split.eq('validation')], context, ['am_pathogenicity'], allow_missing=True)
-    return {'AlphaMissense': arrays['am_pathogenicity']}
+    arrays = align_predictions(frame[frame.split.eq('validation')], context, [column], allow_missing=True)
+    require(not ((arrays[column] < 0) | (arrays[column] > 1)).any(), f'Invalid {tool} score range')
+    return {tool: arrays[column]}
 
 
 def load_q9(root, context):
@@ -241,11 +276,13 @@ def collect(root=ROOT, repetitions=REPETITIONS):
     result['cohort'] = {key: context[key] for key in ['protocol_sha256', 'vcf_exports']}
     result['cohort']['validation_variants'] = len(validation)
     predictions = {}
-    for question, loader, required in [('q2', load_q2, 'validation_report.json'),
-                                        ('q8', load_q8, 'baseline_provenance.json'), ('q9', load_q9, 'metrics.json')]:
+    loaders = [('q2', load_q2, 'validation_report.json', None)] + [
+        ('q8', load_q8, str(Path(folder) / 'baseline_provenance.json'), tool)
+        for tool, (folder, _, _) in Q8_EXPORTS.items()] + [('q9', load_q9, 'metrics.json', None)]
+    for question, loader, required, tool in loaders:
         directory = root / 'notebooks/results' / question
         candidates = [row for row in methods.values() if row['question'].lower() == question and
-                      (question != 'q8' or row['method'] == 'AlphaMissense')]
+                      (question != 'q8' or row['method'] == tool)]
         if not (directory / required).exists():
             if question == 'q9' and (directory / 'readiness.json').exists():
                 try:
@@ -257,17 +294,26 @@ def collect(root=ROOT, repetitions=REPETITIONS):
                     pass
             continue
         try:
-            arrays = loader(root, context)
+            arrays = loader(root, context, tool) if question == 'q8' else loader(root, context)
             for key, values in arrays.items():
                 identifier = f'{question}:{key}'
                 predictions[identifier] = values
                 methods[identifier].update(status='Available', note=(
-                    'ClinVar calibration overlap unresolved; maximum matching transcript score.' if question == 'q8'
+                    Q8_NOTES[key] if question == 'q8'
                     else 'Development result; validation participates in model selection.'))
         except (OSError, ValueError, KeyError, AssertionError) as error:
-            result['errors'][question.upper()] = str(error)
+            result['errors'][f'Q8 {tool}' if question == 'q8' else question.upper()] = str(error)
             for row in candidates:
                 row.update(status='Invalid / stale', note=str(error))
+    access_path = root / 'notebooks/results/q8/primateai3d/access_status.json'
+    if access_path.exists():
+        try:
+            access = read_json(access_path)
+            require(access['status'] == 'blocked' and access['q1_protocol_sha256'] == context['protocol_sha256'],
+                    'PrimateAI-3D access report is stale or invalid')
+            methods['q8:PrimateAI-3D'].update(status='Blocked', note=access['reason'])
+        except (OSError, ValueError, KeyError) as error:
+            result['errors']['Q8 PrimateAI-3D'] = str(error)
     # Future question notebooks can export this small documented contract.
     for path in sorted((root / 'notebooks/results').glob('q*/comparison_results.json')):
         question = path.parent.name
@@ -280,6 +326,10 @@ def collect(root=ROOT, repetitions=REPETITIONS):
             require(not set(candidates) & set(methods), 'Duplicate method IDs in custom comparison export')
             methods.update(candidates)
             require(spec['q1_protocol_sha256'] == context['protocol_sha256'], 'Export cohort is stale')
+            for name, checksum in spec.get('sources', {}).items():
+                verified(root / name, checksum)
+            for name, checksum in spec.get('artifacts', {}).items():
+                verified(path.parent / name, checksum)
             csv = path.with_name('comparison_predictions.csv')
             verified(csv, spec['predictions_sha256'])
             arrays = align_predictions(pd.read_csv(csv), context, spec['methods'], allow_missing=True)
@@ -328,51 +378,29 @@ def markdown_table(rows):
 
 
 def render(result, root=ROOT):
-    """Return the complete Markdown comparison and export its GitHub-visible plot."""
+    """Return the Markdown evaluation tables, paper links and provenance."""
     root = Path(root)
-    rows = result['methods']
+    rows = sorted(result['methods'], key=lambda row: row['id'] == 'q8:PrimateAI-3D')
     notebooks = {p.stem.split('-')[0].upper(): p for p in (root / 'notebooks').glob('Q*.ipynb')}
     table = []
     for row in rows:
         path = notebooks.get(row['question'])
         link = f'[{row["question"]}]({path.relative_to(root).as_posix()})' if path else row['question']
-        table.append({'Method': html.escape(row['method']), 'Notebook': link,
+        name = html.escape(row['method']) + (' (licensed)' if row['id'] == 'q8:PrimateAI-3D' else '')
+        table.append({'Method': name, 'Notebook': link,
+                      'Paper': METHOD_PAPERS.get(row['id'], '—'),
                       'Scored / validation': f'{row["covered"]:,} / {row["total"]:,}' if 'covered' in row else '—',
                       'AUROC [95% CI]': format_metric(row, 'auroc'),
                       'Average precision [95% CI]': format_metric(row, 'average_precision')})
     cohort = result['cohort']
     intro = (f'**{cohort["validation_variants"]:,} missense validation variants · ClinVar labels**' if cohort
              else '**Frozen validation inputs unavailable**')
-    sections = ['## Method comparison', 'Compare methods on Q1’s frozen missense validation set.', intro,
+    sections = ['## Method comparison', 'Compare methods on Q1’s frozen missense **pilot** validation set. These scores do not evaluate the full VCF exports.', intro,
                 markdown_table(table)]
     available = [row for row in rows if row.get('metrics')]
-    if available:
-        common = result['common']
-        plotted = [row for row in available if not common or row['id'] in common]
-        fig = Figure(figsize=(10, max(2.5, .55 * len(plotted) + 1.4)), layout='constrained')
-        axes = fig.subplots(1, 2)
-        for index, row in enumerate(plotted):
-            measured = common[row['id']] if common else row
-            for ax, key in zip(axes, ['auroc', 'average_precision']):
-                metric = measured['metrics'][key]
-                low, high = metric['ci95'] or [metric['value']] * 2
-                ax.hlines(index, low, high, color='#28866b', linewidth=3)
-                ax.plot(metric['value'], index, 'o', color='#17634d')
-        for ax, title in zip(axes, ['AUROC', 'Average precision']):
-            ax.set(yticks=range(len(plotted)), yticklabels=[f'{r["method"]} ({r["question"]})' for r in plotted],
-                   xlim=(0, 1), ylim=(len(plotted) - .5, -.5), xlabel=title)
-            ax.grid(axis='x', alpha=.2)
-        axes[1].set_yticklabels([])
-        title = (f'Common scored subset: {next(iter(common.values()))["total"]:,} variants' if common
-                 else 'Available result · covered validation variants')
-        fig.suptitle(title)
-        buffer = io.BytesIO()
-        fig.savefig(buffer, format='png', dpi=150)
-        atomic_write(root / 'notebooks/results/comparison/metrics.png', buffer.getvalue())
-        atomic_write(root / 'assets/comparison.png', buffer.getvalue())
-        sections.append('![Validation AUROC and average precision with 95% confidence intervals](assets/comparison.png)')
     if result['common']:
         table = [{'Method': f'{row["method"]} ({row["question"]})',
+                  'Paper': METHOD_PAPERS.get(row['id'], '—'),
                   'Shared variants': result['common'][row['id']]['total'],
                   'AUROC [95% CI]': format_metric(result['common'][row['id']], 'auroc'),
                   'Average precision [95% CI]': format_metric(result['common'][row['id']], 'average_precision')}
@@ -393,7 +421,8 @@ def render(result, root=ROOT):
         conclusion = 'Use the common-subset comparison to assess methods; coverage remains a separate limitation.'
     sections.append('**Conclusion.** ' + conclusion + '\n\n'
                     'These are development results: validation participates in model selection. '
-                    'AlphaMissense has unresolved ClinVar calibration overlap. The 95% intervals resample whole '
+                    'AlphaMissense calibration and REVEL/PolyPhen-2 training overlap with ClinVar remain unresolved. '
+                    'The 95% intervals resample whole '
                     'Q1 components and do not correct selection bias or establish clinical validity.')
     return '\n\n'.join(sections)
 
