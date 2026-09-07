@@ -414,7 +414,6 @@ def render(result, root=ROOT):
     available = [row for row in rows if row.get('metrics')]
     if result['common']:
         table = [{'Method': f'{row["method"]} ({row["question"]})',
-                  'Paper': METHOD_PAPERS.get(row['id'], '—'),
                   'Shared variants': result['common'][row['id']]['total'],
                   'AUROC [95% CI]': format_metric(result['common'][row['id']], 'auroc'),
                   'Average precision [95% CI]': format_metric(result['common'][row['id']], 'average_precision')}

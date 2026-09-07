@@ -1,10 +1,21 @@
-# Pesho's Pathogenicity Predictor
+# Pathogenicity Prediction
 
-A small research project for predicting the pathogenicity of **missense variants**
-using ClinVar data.
+## Problem statement
 
-Q0 and Q1 use the **6 July 2026** ClinVar snapshot. The evaluation tables require
-results from its full missense dataset; September pilot evaluations are archived.
+Predict whether a single-nucleotide **missense variant** is **benign (0)** or
+**pathogenic (1)** using ClinVar labels, merging “likely benign” and “likely
+pathogenic” into their respective classes. Uncertain, conflicting, other, and
+missing labels are excluded from training and evaluation.
+
+### Data
+
+Q0 and Q1 share **`data/clinvar_20260706.vcf` (6 July 2026)** and automatically
+download the verified dated archive when needed. The obsolete `data/clinvar.vcf`
+has been removed. Completed Q2/Q8/Q9/Q10 September pilot runs remain historical;
+the current comparison requires results from the full July dataset.
+See [data/README.md](data/README.md) for filenames and checksum checks. Q1 also writes the two shared VCF
+partitions to `data/`; other generated files live under `notebooks/results/`.
+Generated artifacts are described in [results documentation](notebooks/results/README.md).
 
 <!-- comparison:start -->
 ## Method comparison
@@ -204,16 +215,6 @@ training-only scaler and balanced logistic regression used by the 1B baseline.
 Keep Q1's missense partitions, 1,024-base contexts and validation selection fixed.
 Report paired component-bootstrap comparisons and compute usage. The original
 1B checkpoint is BF16-sensitive, so differences do not isolate model size alone.
-
-## Data
-
-Q0 and Q1 share **`data/clinvar_20260706.vcf` (6 July 2026)** and automatically
-download the verified dated archive when needed. The obsolete `data/clinvar.vcf`
-has been removed. Completed Q2/Q8/Q9/Q10 September pilot runs remain historical;
-the current comparison requires results from the full July dataset.
-See [data/README.md](data/README.md) for filenames and checksum checks. Q1 also writes the two shared VCF
-partitions to `data/`; other generated files live under `notebooks/results/`.
-Generated artifacts are described in [results documentation](notebooks/results/README.md).
 
 ## Machine configuration
 
