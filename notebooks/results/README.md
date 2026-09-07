@@ -10,8 +10,9 @@ Q1's pilot VCFs and manifests now contain **missense variants only**. Q0 now aud
 Q2's missense inputs have been prepared; feature extraction, fitting and validation
 must be rerun to obtain missense results. The earlier broad-SNV experiment is
 preserved in `archive/broad_snv_before_missense/`.
-Q8 retains its earlier broader survey as background; splicing and regulatory
-experiments are outside the current scope.
+Q8 now surveys six missense-specific tools and evaluates AlphaMissense on the
+fixed pilot. Its earlier broader survey, notebook and implementation are preserved
+in `archive/q8_before_missense_baseline/`.
 
 ## Q0 artifacts
 
@@ -69,19 +70,34 @@ Q2 consumes these fixed missense partitions and verifies their hashes.
   `auroc_intervals.png`: development results, paired component bootstrap intervals
   and plots. Validation also selects C; the intervals do not correct selection bias.
 
-## Q8 artifacts: tool survey
+## Q8 artifacts: missense survey and AlphaMissense reference
 
 [Q8](../Q8-tools-survey.ipynb) renders the reviewed catalog in
-`notebooks/src/q8_catalog.json` offline and writes to `notebooks/results/q8/`:
+`notebooks/src/q8_catalog.json` offline, then downloads verified AlphaMissense scores
+when absent and benchmarks the fixed pilot. It writes to `notebooks/results/q8/`:
 
 - `survey.json`, `tool_comparison.csv`: dated tool comparisons and source URLs.
-- `tool_landscape.png`, `baseline_shortlist.png`: documented targets and proposed baselines.
+- `tool_landscape.png`, `baseline_shortlist.png`: missense methods and the selected reference.
 - `provenance.json`: catalog/code hashes, dependencies, artifact checksums and
   executable catalog consistency checks.
 
-This is an authored literature survey. It does not access the ClinVar partitions,
-run predictors or measure accuracy. Any later benchmark must use Q1's missense-only fixed VCFs
-and audit the selected tools' actual training provenance and sequence contexts.
+- `baseline_protocol.json`: pinned score source, exact-allele matching, maximum
+  transcript score aggregation and evaluation settings recorded before reading outcomes.
+- `pilot_scores.csv`: one row per frozen pilot variant, continuous score or missing
+  status, annotation/transcript counts, minimum score and score range; no labels.
+- `matched_annotations.csv`: every matching transcript/protein annotation and score.
+- `pilot_evaluation.csv`: scores joined to unchanged partitions, components and
+  ClinVar outcomes; used for evaluation only, never as predictor input.
+- `coverage.csv`, `coverage.png`: scored/missing counts by partition and class.
+- `validation_metrics.json`, `validation_curves.png`: AUROC, average precision,
+  component-bootstrap 95% intervals (1,000 replicates, seed 42), and ROC/PR curves.
+- `baseline_provenance.json`: input/code/output hashes, original archive header,
+  licenses, dependencies, compute and rerun Q1 leakage checks.
+
+ClinVar remains the ground truth. AlphaMissense uses ClinVar calibration, whose
+exact overlap is unresolved. Metrics apply to covered validation variants and are
+development results; neither independent clinical validation nor a tool ranking.
+Missing scores are never imputed as benign. No Q2 models are fitted by Q8.
 
 ## Archived three-way experiment
 

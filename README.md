@@ -73,10 +73,11 @@ provenance checks, but would test usefulness beyond reproducing existing labels.
 
 ### [Q8. What in silico tools currently exist for predicting missense variant pathogenicity, and which are suitable baselines for this project?](notebooks/Q8-tools-survey.ipynb)
 
-Survey missense predictors and broad variant scorers applicable to missense variants.
-Compare their inputs, availability, licensing, compute and clinical training or
-calibration exposure. Use a dated, cited overview to identify practical baselines
-for evaluation on Q1's fixed partitions.
+Compare six missense-specific predictors and set up AlphaMissense as the reference
+baseline. Automatically download its pinned GRCh38 scores, match Q1's fixed pilot
+alleles, and report coverage and validation performance with component-bootstrap
+intervals. ClinVar remains the ground truth; AlphaMissense's clinical calibration
+exposure limits independence claims.
 
 ### [Q9. Can light fine-tuning of Evo2 improve missense pathogenicity prediction compared with frozen representations and zero-shot scoring?](notebooks/Q9-evo2-finetuning.ipynb)
 
@@ -92,7 +93,8 @@ Research notebooks and their explanations live in `notebooks/`; generated files
 live in `notebooks/results/`.
 Implementation lives in [q0.py](notebooks/src/q0.py), [q1.py](notebooks/src/q1.py)
 and [q2.py](notebooks/src/q2.py). The tool survey uses [q8.py](notebooks/src/q8.py)
-and a [bundled source catalog](notebooks/src/q8_catalog.json).
+and a [bundled source catalog](notebooks/src/q8_catalog.json); its
+[AlphaMissense workflow](notebooks/src/q8_baseline.py) downloads scores and evaluates the pilot on CPU.
 
 ## Data
 

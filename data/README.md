@@ -76,3 +76,22 @@ The external Evo2 checkpoint uses the standard Hugging Face cache, outside
 generated notebook results: `arcinstitute/evo2_1b_base`, revision
 `2279e1df422c991037470302360edd40d0d2ea1e`. [Q2](../notebooks/Q2-evo2-classifier.ipynb) verifies its SHA-256
 `8ffba7d0e6445a8f2c92d9ff1c4e772c7f73ca9179f5e0c699b8b0ca1b966f64`.
+
+## Q8 AlphaMissense scores
+
+[Q8](../notebooks/Q8-tools-survey.ipynb) downloads the published 2023 GRCh38 scores
+to `data/alphamissense/AlphaMissense_hg38.tsv.gz` when absent. It pins GCS generation
+`1691073413649109`, checks the archive size (642,961,469 bytes) and published MD5
+`9fd167735f16a1b87da6eb3e4c25fcb5`, and atomically promotes verified downloads.
+Existing corrupt archives fail verification; valid files are reused offline.
+The [source metadata](https://storage.googleapis.com/storage/v1/b/dm_alphamissense/o/AlphaMissense_hg38.tsv.gz?generation=1691073413649109)
+and [download](https://storage.googleapis.com/dm_alphamissense/AlphaMissense_hg38.tsv.gz?generation=1691073413649109)
+are public; no model weights, GPU, credentials or variant uploads are required.
+
+The original archive header says CC BY-NC-SA 4.0; the later
+[official README](https://github.com/google-deepmind/alphamissense/blob/fe2dc845f93310abd6c1b0e8955d7a96c2144d66/README.md)
+says predictions are CC BY 4.0. Q8 retains both statements in provenance and leaves
+the downloaded archive unchanged. Cite Cheng et al. (2023), Science,
+[doi:10.1126/science.adg7492](https://doi.org/10.1126/science.adg7492).
+The archive stays outside Git; matched scores and evaluation outputs live in
+`notebooks/results/q8/`. Run Q1 before Q8 to reproduce the frozen pilot inputs.

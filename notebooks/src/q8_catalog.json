@@ -1,20 +1,10 @@
 {
   "reviewed_on": "2026-09-07",
-  "scope": "Representative human germline small-variant tools relevant to the ClinVar project; not an exhaustive catalog or performance benchmark.",
+  "scope": "Six representative missense-specific predictors for human germline SNVs; not an exhaustive catalog or comparative performance ranking.",
   "method": "Manual review of developer documentation, published methods and release/source metadata. Facts and URLs are bundled to reproduce this dated survey offline; rerunning does not refresh the literature.",
-  "version_policy": "Releases identify the reviewed software, score export or publication, as stated. Pinned source revisions identify documentation/code, not downloaded model weights. No surveyed tool is executed here.",
+  "version_policy": "Releases identify reviewed software, score exports or publications. Pinned source revisions identify documentation/code. The accompanying benchmark uses the pinned 2023 AlphaMissense hg38 score archive.",
   "compute_policy": "Compute entries summarize documented execution routes. CPU lookup guidance is a workflow inference, not a runtime benchmark.",
   "sources": {
-    "cadd_paper": {
-      "title": "Schubach et al. — CADD v1.7 (2024)",
-      "url": "https://academic.oup.com/nar/article/52/D1/D1143/7511313",
-      "reviewed_on": "2026-09-07"
-    },
-    "cadd_access": {
-      "title": "CADD — scoring, supported input and usage terms",
-      "url": "https://cadd.bihealth.org/score",
-      "reviewed_on": "2026-09-07"
-    },
     "sift_code": {
       "title": "SIFT4G — source, protein inputs and compute",
       "url": "https://github.com/rvaser/sift4g/blob/8fd9f4042723f017afa1624400e1bf6a80abd0d1/README.md",
@@ -90,134 +80,13 @@
       "url": "https://www.illumina.com/science/genomics-research/articles/primateai-3d.html",
       "reviewed_on": "2026-09-07"
     },
-    "splice_code": {
-      "title": "SpliceAI — variant inputs, model scope and licenses",
-      "url": "https://github.com/Illumina/SpliceAI/blob/03f42437aaf56dc5dfd822c4ccee5aec1a705079/README.md",
-      "reviewed_on": "2026-09-07"
-    },
-    "splice_version": {
-      "title": "SpliceAI — software version",
-      "url": "https://github.com/Illumina/SpliceAI/blob/03f42437aaf56dc5dfd822c4ccee5aec1a705079/setup.py",
-      "reviewed_on": "2026-09-07"
-    },
-    "splice_paper": {
-      "title": "Jaganathan et al. — Predicting splicing from primary sequence (2019)",
-      "url": "https://doi.org/10.1016/j.cell.2018.12.015",
-      "reviewed_on": "2026-09-07"
-    },
-    "pangolin_code": {
-      "title": "Pangolin — input restrictions, annotations, compute and GPL-3.0 license",
-      "url": "https://github.com/tkzeng/Pangolin/blob/5cf94b8db938c658391b4305cd7ce33297d44ff7/README.md",
-      "reviewed_on": "2026-09-07"
-    },
-    "pangolin_version": {
-      "title": "Pangolin — software version",
-      "url": "https://github.com/tkzeng/Pangolin/blob/5cf94b8db938c658391b4305cd7ce33297d44ff7/setup.py",
-      "reviewed_on": "2026-09-07"
-    },
-    "pangolin_paper": {
-      "title": "Zeng and Li — Predicting RNA splicing using Pangolin (2022)",
-      "url": "https://doi.org/10.1186/s13059-022-02664-4",
-      "reviewed_on": "2026-09-07"
-    },
-    "promoter_code": {
-      "title": "PromoterAI — expression scores, training, access and compute",
-      "url": "https://github.com/Illumina/PromoterAI/blob/ce9fcd080556d7e962a5946327fe8fd1a04e272b/README.md",
-      "reviewed_on": "2026-09-07"
-    },
-    "promoter_version": {
-      "title": "PromoterAI — software version",
-      "url": "https://github.com/Illumina/PromoterAI/blob/ce9fcd080556d7e962a5946327fe8fd1a04e272b/setup.py",
-      "reviewed_on": "2026-09-07"
-    },
-    "promoter_license": {
-      "title": "PromoterAI — PolyForm Strict license",
-      "url": "https://github.com/Illumina/PromoterAI/blob/ce9fcd080556d7e962a5946327fe8fd1a04e272b/LICENSE",
-      "reviewed_on": "2026-09-07"
-    },
-    "ag_code": {
-      "title": "AlphaGenome — released weights, model terms, compute and training data",
-      "url": "https://github.com/google-deepmind/alphagenome_research/blob/0db53bd4352c66d1e00a049a81da373a066e6670/README.md",
-      "reviewed_on": "2026-09-07"
-    },
-    "ag_paper": {
-      "title": "Avsec et al. — Regulatory variant prediction with AlphaGenome (2026)",
-      "url": "https://www.nature.com/articles/s41586-025-10014-0",
-      "reviewed_on": "2026-09-07"
-    },
-    "ag_api": {
-      "title": "AlphaGenome — API access and licensing",
-      "url": "https://github.com/google-deepmind/alphagenome",
-      "reviewed_on": "2026-09-07"
-    },
-    "evo_code": {
-      "title": "Evo2 — documented model family, inputs and availability",
-      "url": "https://github.com/ArcInstitute/evo2",
-      "reviewed_on": "2026-09-07"
-    },
-    "evo_pinned": {
-      "title": "Evo2 — implementation pinned by this project",
-      "url": "https://github.com/ArcInstitute/evo2/tree/53f195997257c56c00e5ef8d33a54f5baad143a6",
-      "reviewed_on": "2026-09-07"
-    },
-    "evo_model": {
-      "title": "Evo2 1B — project checkpoint and model license",
-      "url": "https://huggingface.co/arcinstitute/evo2_1b_base/tree/2279e1df422c991037470302360edd40d0d2ea1e",
-      "reviewed_on": "2026-09-07"
-    },
-    "evo_paper": {
-      "title": "Brixi et al. — Genome modelling with Evo2 (2026)",
-      "url": "https://www.nature.com/articles/s41586-026-10176-5",
+    "am_scores": {
+      "title": "DeepMind AlphaMissense — pinned hg38 score archive metadata",
+      "url": "https://storage.googleapis.com/storage/v1/b/dm_alphamissense/o/AlphaMissense_hg38.tsv.gz?generation=1691073413649109",
       "reviewed_on": "2026-09-07"
     }
   },
   "tools": [
-    {
-      "name": "CADD",
-      "release": "1.7 (2024)",
-      "targets": [
-        "Broad SNV score"
-      ],
-      "method": "Annotation ensemble; general deleteriousness ranking.",
-      "variants": "Coding and noncoding SNVs; short indels can be scored separately.",
-      "inputs": "GRCh37/GRCh38 chromosome, position, REF and ALT.",
-      "access": "Precomputed scores, web service and local scoring.",
-      "compute": "CPU lookup is the simplest route; local scoring needs annotation resources.",
-      "license": "Scores: non-commercial use; commercial use requires contacting the authors.",
-      "training": "Human-derived versus simulated variants; proxy labels rather than direct clinical labels.",
-      "clinvar": "ClinVar used for assessment; PolyPhen is an input feature trained on known disease variants.",
-      "caution": "Useful broad comparator, but annotation inheritance and clinical assessment prevent a blanket leakage-free claim.",
-      "sources": [
-        "cadd_paper",
-        "cadd_access"
-      ],
-      "reviewed_on": "2026-09-07",
-      "source_revision": null
-    },
-    {
-      "name": "Evo2",
-      "release": "2026 model family; project: evo2_1b_base, code 0.6.0",
-      "targets": [
-        "Broad SNV score"
-      ],
-      "method": "DNA language model; likelihood changes or frozen representations.",
-      "variants": "Reference/alternate DNA sequences; this project evaluates SNVs with 1,024-base contexts.",
-      "inputs": "DNA windows; pin checkpoint, strand treatment and scoring rule.",
-      "access": "Public code and model weights; project already has a frozen 1B workflow.",
-      "compute": "GPU inference. Project 1B runtime is documented in Q2; requirements vary by model and context.",
-      "license": "Repository and the selected Hugging Face checkpoint: Apache-2.0.",
-      "training": "Autoregressive training on OpenGenome2 DNA; the project classifier additionally uses training ClinVar labels.",
-      "clinvar": "Clinical variants used in published evaluation; exact sequence and annotation contamination are not established here.",
-      "caution": "A gene-disjoint classifier split does not prove that its pretrained DNA model never encountered those genes.",
-      "sources": [
-        "evo_code",
-        "evo_pinned",
-        "evo_model",
-        "evo_paper"
-      ],
-      "reviewed_on": "2026-09-07",
-      "source_revision": null
-    },
     {
       "name": "SIFT4G",
       "release": "2016 method; reviewed source revision pinned",
@@ -298,10 +167,10 @@
       ],
       "method": "Protein structure/evolution model with population-frequency supervision.",
       "variants": "Human missense substitutions in the released transcript/protein catalog.",
-      "inputs": "GRCh37/GRCh38 alleles with transcript mapping, or protein substitution identifiers.",
+      "inputs": "Exact GRCh38 alleles for this benchmark; retain transcript/protein annotations from the published score file.",
       "access": "Public precomputed predictions and reference code; trained weights are not provided.",
       "compute": "CPU lookup of the score release; new inference cannot be reproduced from the published code alone.",
-      "license": "Code: Apache-2.0; predictions: CC BY 4.0.",
+      "license": "Code: Apache-2.0. Later official README: predictions CC BY 4.0; pinned 2023 archive header: CC BY-NC-SA 4.0. Both statements are retained in provenance.",
       "training": "Human/primate population-frequency labels; core model is not fitted directly to ClinVar classifications.",
       "clinvar": "Released scores are calibrated and category thresholds selected using ClinVar; clinical benchmarking is also reported.",
       "caution": "Use continuous scores and audit calibration membership; do not describe this as wholly ClinVar-independent.",
@@ -309,7 +178,8 @@
         "am_code",
         "am_authors",
         "am_paper",
-        "am_calibration"
+        "am_calibration",
+        "am_scores"
       ],
       "reviewed_on": "2026-09-07",
       "source_revision": {
@@ -368,158 +238,24 @@
         "revision": "a3c210bcd0880c72b307b5fba0a2a17bddda59cd",
         "commit_date": "2026-03-13T19:31:41Z"
       }
-    },
-    {
-      "name": "SpliceAI",
-      "release": "1.3.1; 2019 model",
-      "targets": [
-        "Splicing effects"
-      ],
-      "method": "Sequence model of donor/acceptor gains and losses.",
-      "variants": "Genic SNVs and simple indels; predicts splicing changes, not all pathogenic mechanisms.",
-      "inputs": "VCF, matching genome FASTA and transcript/gene annotations.",
-      "access": "Local package and pretrained models; score resources also exist.",
-      "compute": "CPU supported; GPU useful for inference. Use the model's required flanking DNA.",
-      "license": "Code: PolyForm Strict 1.0.0; models: CC BY-NC 4.0; commercial use needs a license.",
-      "training": "Annotated splice sites from primary DNA sequence.",
-      "clinvar": "Clinical evaluation is separate from the splice-site objective; exact external model exposure is unverified.",
-      "caution": "Splice disruption is not equivalent to pathogenicity; audit genome/annotation versions and expanded context overlap.",
-      "sources": [
-        "splice_code",
-        "splice_version",
-        "splice_paper"
-      ],
-      "reviewed_on": "2026-09-07",
-      "source_revision": {
-        "repository": "https://github.com/Illumina/SpliceAI",
-        "revision": "03f42437aaf56dc5dfd822c4ccee5aec1a705079",
-        "commit_date": "2026-04-03T17:15:57Z"
-      }
-    },
-    {
-      "name": "Pangolin",
-      "release": "1.0.2; 2022 model",
-      "targets": [
-        "Splicing effects"
-      ],
-      "method": "Multi-tissue splice-site strength from DNA sequence.",
-      "variants": "Genic substitutions and simple indels under the command-line restrictions.",
-      "inputs": "VCF/CSV, genome FASTA and an annotation database derived from GTF.",
-      "access": "Public code and packaged model weights; custom-sequence inference supported.",
-      "compute": "CPU supported; upstream recommends a GPU when available.",
-      "license": "Repository: GPL-3.0; annotation/reference data have separate terms.",
-      "training": "RNA-splicing measurements across tissues and species.",
-      "clinvar": "Published pathogenic-variant evaluation does not establish absence of overlap in upstream sequence or annotation data.",
-      "caution": "A suitable open splicing comparator after annotation matching and checks for overlapping longer windows.",
-      "sources": [
-        "pangolin_code",
-        "pangolin_version",
-        "pangolin_paper"
-      ],
-      "reviewed_on": "2026-09-07",
-      "source_revision": {
-        "repository": "https://github.com/tkzeng/Pangolin",
-        "revision": "5cf94b8db938c658391b4305cd7ce33297d44ff7",
-        "commit_date": "2023-05-01T09:56:53Z"
-      }
-    },
-    {
-      "name": "PromoterAI",
-      "release": "1.0rc6 source; 2025 model",
-      "targets": [
-        "Regulatory effects"
-      ],
-      "method": "Promoter variant effects on gene expression.",
-      "variants": "Promoter SNVs; local interface also accepts normalized indels.",
-      "inputs": "Chromosome, position, REF, ALT, strand and reference FASTA; documented context is 20,480 bases.",
-      "access": "Precomputed promoter SNV scores after license agreement; local inference interface available.",
-      "compute": "CPU/GPU supported; using precomputed scores avoids model execution.",
-      "license": "Code: PolyForm Strict 1.0.0; score access is academic/non-commercial; other use needs licensing.",
-      "training": "Regulatory profiles across species; fine-tuning workflow uses GTEx variants.",
-      "clinvar": "Exact clinical benchmark/calibration overlap was not established in this review.",
-      "caution": "Expression direction and magnitude are not a universal pathogenicity score; context exceeds Q1's grouping window.",
-      "sources": [
-        "promoter_code",
-        "promoter_version",
-        "promoter_license"
-      ],
-      "reviewed_on": "2026-09-07",
-      "source_revision": {
-        "repository": "https://github.com/Illumina/PromoterAI",
-        "revision": "ce9fcd080556d7e962a5946327fe8fd1a04e272b",
-        "commit_date": "2026-04-03T17:16:28Z"
-      }
-    },
-    {
-      "name": "AlphaGenome",
-      "release": "2026 Nature model; research source revision pinned",
-      "targets": [
-        "Splicing effects",
-        "Regulatory effects"
-      ],
-      "method": "Long-context prediction of expression, splicing and chromatin tracks.",
-      "variants": "DNA sequence changes affecting molecular regulation; not a direct missense protein-damage classifier.",
-      "inputs": "Genomic interval and variant, chosen tissues and output/scoring strategy; up to 1 Mb of DNA.",
-      "access": "Hosted API and released local model weights, with model terms to accept.",
-      "compute": "API avoids local inference; upstream recommends at least an H100 GPU for its research implementation.",
-      "license": "Code: Apache-2.0; weights and API have separate non-commercial model/service terms.",
-      "training": "Functional genomic tracks from human/mouse and public annotation datasets.",
-      "clinvar": "ClinVar used in splicing evaluation; downstream scoring/selection and training-region exposure need audit.",
-      "caution": "Reserve for a regulatory experiment with predefined tissue/scorer and compatible context grouping; not a drop-in disease score.",
-      "sources": [
-        "ag_code",
-        "ag_paper",
-        "ag_api"
-      ],
-      "reviewed_on": "2026-09-07",
-      "source_revision": {
-        "repository": "https://github.com/google-deepmind/alphagenome_research",
-        "revision": "0db53bd4352c66d1e00a049a81da373a066e6670",
-        "commit_date": "2026-09-02T11:45:55Z"
-      }
     }
   ],
   "shortlist": [
     {
-      "scope": "Broad SNV comparison",
+      "scope": "Missense pilot reference",
       "tools": [
-        "CADD",
-        "Evo2"
+        "AlphaMissense"
       ],
-      "reason": "Add CADD lookup alongside the existing Evo2 zero-shot baseline; cover the pilot broadly and audit inherited clinical annotations."
-    },
-    {
-      "scope": "Missense subset",
-      "tools": [
-        "AlphaMissense",
-        "EVE"
-      ],
-      "reason": "Use available continuous scores; report transcript/protein coverage and review clinical calibration or protein-family exposure."
-    },
-    {
-      "scope": "Splicing subset",
-      "tools": [
-        "Pangolin",
-        "SpliceAI"
-      ],
-      "reason": "Compare splice effects on an explicitly defined subset; prefer an executable route with acceptable licensing and recheck longer contexts."
-    },
-    {
-      "scope": "Regulatory follow-up",
-      "tools": [
-        "PromoterAI",
-        "AlphaGenome"
-      ],
-      "reason": "Use only with a defined promoter/tissue target and a frozen scoring rule; these require additional context and access planning."
+      "reason": "Public GRCh38 allele scores make CPU lookup practical without model weights, protein remapping or gated access. Measure pilot coverage and validation ranking against ClinVar; retain the clinical-calibration caveat."
     }
   ],
   "evaluation_rules": [
-    "Any later benchmark must retain Q1 membership in data/clinvar-train-pilot.vcf and data/clinvar-test-pilot.vcf; the latter is validation.",
-    "Use the same eligible variants for pairwise comparisons; report missing-score coverage separately and never assign missing scores to the benign class.",
-    "Pin score files/checkpoints, reference assembly and transcript release. Predictor inputs must exclude ClinVar clinical assertions and label-derived annotations.",
-    "Fit any calibration, preprocessing or classifier on training only; use validation for choices. Record external clinical training, calibration and evaluation exposure.",
-    "Re-audit overlap using each model's actual sequence windows. The 1,024-base Q1 check does not certify 10 kb, 20 kb or 1 Mb contexts; stop if incompatible.",
-    "Q8 reads no variant labels, fits no models and reports no measured coverage or accuracy. Its checks validate survey provenance, not absence of biological contamination."
+    "Retain Q1 membership and checksums in data/clinvar-train-pilot.vcf and data/clinvar-test-pilot.vcf; the latter is validation, with no independent test set.",
+    "Match only exact GRCh38 alleles. Use the maximum continuous score over matching transcript annotations, fixed before loading outcomes. Retain all annotations and report coverage by split and class.",
+    "Leave unmatched variants unscored. Ranking metrics apply only to covered validation variants; no benign imputation or claims about missing variants.",
+    "ClinVar remains the ground truth. Clinical assertions and label-derived annotations never enter score lookup; no fitting, threshold tuning or recalibration occurs.",
+    "Rerun Q1 full-cohort and sequence audits. They certify local partition separation, not independence of AlphaMissense protein/evolutionary data or its ClinVar calibration set.",
+    "Use 1000 component-bootstrap replicates with seed 42 for percentile 95% intervals. These are development results, not an independent clinical validation or tool ranking."
   ],
-  "conclusion": "Existing tools span broad variant ranking, missense effects, splicing and regulation. For this project, start with CADD alongside Evo2, then AlphaMissense/EVE for missense and Pangolin or SpliceAI for splicing. These are scope-based baseline choices, not a performance ranking; external training and calibration overlap still require auditing."
+  "conclusion": "The missense catalog covers SIFT4G, PolyPhen-2, REVEL, AlphaMissense, EVE and PrimateAI-3D. AlphaMissense is selected as the practical reference predictor using its public GRCh38 score release. ClinVar remains the ground truth. Coverage and validation performance are measured in the accompanying benchmark; clinical calibration overlap remains unresolved."
 }
