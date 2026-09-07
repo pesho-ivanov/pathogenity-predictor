@@ -1,8 +1,25 @@
 # Project goals
 
-Build a small, simple, clean project that predicts genetic variant pathogenicity
+Build a small, simple, clean project that predicts missense variant pathogenicity
 using ClinVar data. A small classifier on frozen Evo2 representations is a
 candidate; use the simplest approach justified by validation results.
+
+## Variant scope
+
+- Restrict predictor development, evaluation and research questions to missense
+  variants. Keep the current single-nucleotide substitution restriction.
+- Use ClinVar's `MC` missense annotation (`SO:0001583`) to define eligibility;
+  missing annotations and records without that consequence are excluded.
+  Retain all gene associations for leakage checks, including when a variant has
+  multiple consequence annotations. Eligibility annotations are not predictor inputs.
+- Keep the original ClinVar input intact. Full-file counts may provide context,
+  but modeling cohorts and reported performance must refer to missense variants.
+- Preserve earlier broad-SNV runs as historical records; do not describe their
+  counts or scores as missense-only results. Before new experiments, define and
+  freeze missense-only inputs with executable eligibility checks. Keep existing
+  variants in their assigned splits and preserve the earlier manifests and results.
+- Focus tool comparisons on missense predictors and broad scorers applied to
+  missense variants. Standalone splicing and regulatory prediction are out of scope.
 
 ## Reproducibility and implementation
 
@@ -11,7 +28,7 @@ candidate; use the simplest approach justified by validation results.
 - Store external inputs in `data/`. Q1 also writes the shared experiment inputs
   `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf` there. Store other generated
   files under `notebooks/results/`, organized by research question.
-- All subsequent experiments must use Q1's fixed VCF partitions: `clinvar-train-pilot.vcf`
+- All subsequent experiments must use Q1's missense-only, fixed VCF partitions: `clinvar-train-pilot.vcf`
   for training and `clinvar-test-pilot.vcf` for validation. Keep their membership and
   checksums fixed; do not resample or move variants between the files.
 - Put reusable implementation in clear Python files with explicit inputs and

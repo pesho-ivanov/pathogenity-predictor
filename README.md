@@ -1,43 +1,35 @@
 # Pesho's Pathogenicity Predictor
 
-A small research project for predicting genetic variant pathogenicity from
-ClinVar data. See [GOALS.md](GOALS.md) for the project requirements.
-
-This is exploratory research, not clinical validation.
-
-Clone with the Evo2 source included:
-
-```bash
-git clone --recurse-submodules git@github.com:pesho-ivanov/gamow-predictor.git
-```
+A small research project for predicting the pathogenicity of **missense variants**
+using ClinVar data.
 
 ## Research questions
 
-These questions support the [project goals](GOALS.md): ClinVar pathogenicity
-prediction, potentially using frozen Evo2 representations. Evo2 already has
+These questions support the [project goals](GOALS.md): ClinVar missense pathogenicity
+prediction, using frozen Evo2 representations or light fine-tuning. Evo2 already has
 published variant-effect results, so the strongest contribution would address
 generalization, reliability, and when its representations add value.
 ([Evo2 paper](https://www.nature.com/articles/s41586-026-10176-5))
 
-### [Q0. What does the ClinVar dataset contain, and which variants are suitable for reliable evaluation?](notebooks/Q0-clinvar-summary.ipynb)
+### [Q0. What does ClinVar contain about missense variants, and which are suitable for reliable evaluation?](notebooks/Q0-clinvar-summary.ipynb)
 
-Explore variant types, genes, pathogenicity labels, review status, missing
+Explore missense annotations, genes, pathogenicity labels, review status, missing
 annotations, conflicting classifications, and duplicate or related records.
-Use plots to reveal class imbalance and potential leakage, then define an
-initial dataset and filtering criteria.
+Use plots to reveal class imbalance and potential leakage, then define a
+missense-only dataset and filtering criteria.
 
-### [Q1. How should ClinVar variants be split for reliable evaluation on previously unseen genes?](notebooks/Q1-clinvar-split.ipynb)
+### [Q1. How should ClinVar missense variants be split for reliable evaluation on previously unseen genes?](notebooks/Q1-clinvar-split.ipynb)
 
-Build the 5,000-variant pilot from Q0's cohort. Explain how genes, loci, source
+Define a missense-only pilot from Q0's cohort. Explain how genes, loci, source
 IDs and overlapping or identical sequence contexts connect variants into groups;
 assign whole groups to training and validation. Visualize the split sizes, verify
 separation and export `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf` as the
 fixed inputs for all later experiments. The latter file contains validation data.
 
-### [Q2. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring on previously unseen genes?](notebooks/Q2-evo2-classifier.ipynb)
+### [Q2. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring for missense variants in previously unseen genes?](notebooks/Q2-evo2-classifier.ipynb)
 
 Compare logistic regression on frozen Evo2 1B representations with zero-shot
-scores and a DNA-only sequence baseline: 5,000 SNVs, 1,024-base contexts,
+scores and a DNA-only sequence baseline: missense SNVs, 1,024-base contexts,
 gene-disjoint splits, and paired component bootstrap intervals. Genes, source
 IDs, loci and overlapping contexts are grouped across the full cohort before
 sampling; identical pilot contexts, including reverse complements, also stay
@@ -46,19 +38,19 @@ together. Clinical annotations are excluded from predictor features.
 Use Q1's training VCF for fitting and its validation VCF for model selection and
 comparison. A separate untouched holdout is required for final performance claims.
 
-### Q3. How much does apparent predictive performance depend on similarities between training and test data?
+### Q3. How much does apparent missense predictive performance depend on similarities between training and test data?
 
 Compare conventional random splits with progressively stricter locus-,
 sequence-context-, and gene-separated splits. Treat random splits as a diagnostic
 benchmark; quantify how much performance survives credible leakage controls.
 
-### Q4. Does longer sequence context improve pathogenicity prediction, and for which variant classes?
+### Q4. Does longer sequence context improve missense pathogenicity prediction?
 
 Vary context length while holding the checkpoint, classifier, and evaluation
-variants fixed. Compare missense, splice-associated, and noncoding variants where
-sample sizes permit, measuring both predictive gains and computational cost.
+missense variants fixed. Measure predictive gains and computational cost, with
+gene-level comparisons where sample sizes permit.
 
-### Q5. Is it better to train on fewer strongly supported ClinVar labels or more labels with weaker supporting evidence?
+### Q5. Is it better to train on fewer strongly supported ClinVar missense labels or more labels with weaker supporting evidence?
 
 Compare training sets filtered by review status, including size-matched
 comparisons, against a fixed, strongly reviewed holdout. ClinVar's review status
@@ -66,24 +58,32 @@ captures review processes and agreement, making this a useful test of label
 selection.
 ([ClinVar documentation](https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/))
 
-### Q6. Can the predictor identify when its own predictions are unreliable?
+### Q6. Can the predictor identify when its missense predictions are unreliable?
 
 Evaluate calibration and whether withholding low-confidence predictions reduces
-errors on unseen genes and different variant classes. Report the relationship
-between retained coverage and error rate, alongside discrimination metrics.
+errors on unseen genes. Report the relationship between retained coverage and
+error rate, alongside discrimination metrics.
 
-### Q7. Can a model trained on an older ClinVar snapshot predict subsequently resolved variants of uncertain significance?
+### Q7. Can a model trained on an older ClinVar snapshot predict subsequently resolved missense variants of uncertain significance?
 
 Freeze training labels at an earlier release and evaluate variants that later
 receive clear classifications. This requires historical snapshots and careful
 provenance checks, but would test usefulness beyond reproducing existing labels.
 
-### [Q8. What in silico tools currently exist for predicting genetic variant pathogenicity, and which are suitable baselines for this project?](notebooks/Q8-tools-survey.ipynb)
+### [Q8. What in silico tools currently exist for predicting missense variant pathogenicity, and which are suitable baselines for this project?](notebooks/Q8-tools-survey.ipynb)
 
-Survey tools for missense, splicing, regulatory effects and broad variant scoring.
+Survey missense predictors and broad variant scorers applicable to missense variants.
 Compare their inputs, availability, licensing, compute and clinical training or
 calibration exposure. Use a dated, cited overview to identify practical baselines
 for evaluation on Q1's fixed partitions.
+
+### [Q9. Can light fine-tuning of Evo2 improve missense pathogenicity prediction compared with frozen representations and zero-shot scoring?](notebooks/Q9-evo2-finetuning.ipynb)
+
+Train a small fraction of Evo2's parameters alongside a classification head,
+using Q1's fixed pilot partitions and Q2's checkpoint and sequence contexts.
+Compare validation performance, training time and GPU memory with Q2's baselines.
+Use the [pinned BioNeMo tutorial](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/ca16c2acf9bf813d020b6d1e2d4e1240cfef6a69/docs/docs/user-guide/examples/bionemo-evo2/fine-tuning-tutorial.ipynb)
+as the training scaffold, adding selective weight updates and supervised missense classification.
 
 ## Notebooks
 

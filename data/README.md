@@ -26,8 +26,13 @@ in [q0.py](../notebooks/src/q0.py) to a copy of the same compressed input.
 
 ## Shared experiment partitions
 
-Run [Q1](../notebooks/Q1-clinvar-split.ipynb) to produce the fixed inputs for all subsequent
-experiments:
+**Scope transition:** the existing files below contain a broader SNV pilot and
+have not been rebuilt for the project's missense-only scope. They are historical
+inputs, not ready-to-use missense-only datasets. Before new experiments, freeze
+missense-only inputs and their checksums, preserving existing split assignments
+and the earlier files and manifests.
+
+The recorded [Q1](../notebooks/Q1-clinvar-split.ipynb) workflow produces:
 
 - `clinvar-train-pilot.vcf`: training variants, used to fit preprocessing and models.
 - `clinvar-test-pilot.vcf`: validation variants, used to select settings and compare
@@ -41,7 +46,7 @@ features use DNA. The source VCF remains unchanged.
 
 [Q1's protocol](../notebooks/results/q1/protocol.json) freezes both file checksums;
 its [manifest](../notebooks/results/q1/split_manifest.csv) records membership and
-groups. Later experiments must verify and reuse these files, without repartitioning.
+groups. Reproducing the earlier experiment requires these exact files, without repartitioning.
 Changed or incomplete exports fail verification. Q2 reads its labels directly from
 the VCFs and aligns them to the manifest. The partitions are development data;
 final performance claims require an untouched holdout.

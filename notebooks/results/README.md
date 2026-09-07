@@ -3,6 +3,15 @@
 Generated reports, manifests, caches and models live here. External inputs and
 Q1's two shared VCF partitions belong in the project-root [data/](../../data/) directory.
 
+## Scope of existing results
+
+The project now targets **missense variants only**. The current Q0–Q2 outputs and
+pilot VCFs retain the earlier broad-SNV cohort; their counts and scores are not
+missense-only results. Their code and frozen artifacts have not been rebuilt.
+Q8 retains its earlier broader survey as background; splicing and regulatory
+experiments are outside the current scope. New experiments require frozen
+missense-only inputs and corresponding baseline results.
+
 ## Q0 artifacts
 
 [Q0](../Q0-clinvar-summary.ipynb) regenerates these Git-ignored files under `notebooks/results/q0/`:
@@ -38,7 +47,7 @@ groups must be reconsidered with the actual sequence context and all related gen
 
 Q1 additionally writes `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf`.
 The latter is the validation partition; there is no separate test stage.
-Q2 and later experiments consume these fixed partitions and verify their hashes.
+The recorded Q2 experiment consumes these fixed partitions and verifies their hashes.
 
 ## Q2 artifacts: prediction
 
@@ -68,7 +77,7 @@ Q2 and later experiments consume these fixed partitions and verify their hashes.
   executable catalog consistency checks.
 
 This is an authored literature survey. It does not access the ClinVar partitions,
-run predictors or measure accuracy. Any later benchmark must use Q1's fixed VCFs
+run predictors or measure accuracy. Any later benchmark must use Q1's missense-only fixed VCFs
 and audit the selected tools' actual training provenance and sequence contexts.
 
 ## Archived three-way experiment
