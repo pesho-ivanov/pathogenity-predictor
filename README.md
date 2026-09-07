@@ -3,8 +3,7 @@
 A small research project for predicting genetic variant pathogenicity from
 ClinVar data. See [GOALS.md](GOALS.md) for the project requirements.
 
-Q0 explores the local ClinVar data and proposes a conservative SNV cohort.
-No ClinVar predictor has been trained or validated yet.
+This is exploratory research, not clinical validation.
 
 Clone with the Evo2 source included:
 
@@ -20,38 +19,46 @@ published variant-effect results, so the strongest contribution would address
 generalization, reliability, and when its representations add value.
 ([Evo2 paper](https://www.nature.com/articles/s41586-026-10176-5))
 
-Question titles link to available notebooks. Q1–Q6 are planned; their notebooks
-have not been created yet.
-
-### [Q0. What does the ClinVar dataset contain, and which variants are suitable for reliable evaluation?](notebooks/Q0.ipynb)
+### [Q0. What does the ClinVar dataset contain, and which variants are suitable for reliable evaluation?](notebooks/Q0-clinvar-summary.ipynb)
 
 Explore variant types, genes, pathogenicity labels, review status, missing
 annotations, conflicting classifications, and duplicate or related records.
 Use plots to reveal class imbalance and potential leakage, then define an
 initial dataset and filtering criteria.
 
-All labels are explored; this is development data, not an untouched test set.
+### [Q1. How should ClinVar variants be split for reliable evaluation on previously unseen genes?](notebooks/Q1-clinvar-split.ipynb)
 
-### Q1. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring on previously unseen genes?
+Build the 5,000-variant pilot from Q0's cohort. Explain how genes, loci, source
+IDs and overlapping or identical sequence contexts connect variants into groups;
+assign whole groups to training and validation. Visualize the split sizes, verify
+separation and export `data/clinvar-train.vcf` and `data/clinvar-test.vcf` as the
+fixed inputs for all later experiments. The latter file contains validation data.
 
-Compare logistic regression on reference/alternate representations with zero-shot
-scores and simple sequence or consequence baselines, using gene-disjoint
-evaluation. This directly tests whether a lightweight supervised model adds
-transferable information.
+### [Q2. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring on previously unseen genes?](notebooks/Q2-evo2-classifier.ipynb)
 
-### Q2. How much does apparent predictive performance depend on similarities between training and test data?
+Compare logistic regression on frozen Evo2 1B representations with zero-shot
+scores and a DNA-only sequence baseline: 5,000 SNVs, 1,024-base contexts,
+gene-disjoint splits, and paired component bootstrap intervals. Genes, source
+IDs, loci and overlapping contexts are grouped across the full cohort before
+sampling; identical pilot contexts, including reverse complements, also stay
+together. Clinical annotations are excluded from predictor features.
+
+Use Q1's training VCF for fitting and its validation VCF for model selection and
+comparison. A separate untouched holdout is required for final performance claims.
+
+### Q3. How much does apparent predictive performance depend on similarities between training and test data?
 
 Compare conventional random splits with progressively stricter locus-,
 sequence-context-, and gene-separated splits. Treat random splits as a diagnostic
 benchmark; quantify how much performance survives credible leakage controls.
 
-### Q3. Does longer sequence context improve pathogenicity prediction, and for which variant classes?
+### Q4. Does longer sequence context improve pathogenicity prediction, and for which variant classes?
 
 Vary context length while holding the checkpoint, classifier, and evaluation
 variants fixed. Compare missense, splice-associated, and noncoding variants where
 sample sizes permit, measuring both predictive gains and computational cost.
 
-### Q4. Is it better to train on fewer strongly supported ClinVar labels or more labels with weaker supporting evidence?
+### Q5. Is it better to train on fewer strongly supported ClinVar labels or more labels with weaker supporting evidence?
 
 Compare training sets filtered by review status, including size-matched
 comparisons, against a fixed, strongly reviewed holdout. ClinVar's review status
@@ -59,66 +66,60 @@ captures review processes and agreement, making this a useful test of label
 selection.
 ([ClinVar documentation](https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/))
 
-### Q5. Can the predictor identify when its own predictions are unreliable?
+### Q6. Can the predictor identify when its own predictions are unreliable?
 
 Evaluate calibration and whether withholding low-confidence predictions reduces
 errors on unseen genes and different variant classes. Report the relationship
 between retained coverage and error rate, alongside discrimination metrics.
 
-### Q6. Can a model trained on an older ClinVar snapshot predict subsequently resolved variants of uncertain significance?
+### Q7. Can a model trained on an older ClinVar snapshot predict subsequently resolved variants of uncertain significance?
 
 Freeze training labels at an earlier release and evaluate variants that later
 receive clear classifications. This requires historical snapshots and careful
 provenance checks, but would test usefulness beyond reproducing existing labels.
 
-### Suggested priorities
-
-Start with question **Q0** to understand the data and define the initial cohort.
-Then prioritize questions **Q1 and Q2**, with **Q3–Q5** as focused supporting experiments.
-Question **Q6** is a valuable extension once the core workflow and historical data
-are available.
-
 ## Notebooks
 
 Research notebooks and their explanations live in `notebooks/`; generated files
-live in `notebooks/results/`. Q0 is linked
-above; Q1–Q6 have not been implemented yet. Reusable Q0 logic is in [q0.py](notebooks/src/q0.py).
+live in `notebooks/results/`.
+Implementation lives in [q0.py](notebooks/src/q0.py), [q1.py](notebooks/src/q1.py)
+and [q2.py](notebooks/src/q2.py).
 
-### Running Q0
+## Setup
 
-Use Python 3.12 and the local input described in [data/README.md](data/README.md).
-The notebook scans the full file on CPU, without GPU use or model downloads.
-On the machine documented below, execution took about two minutes with 6.9 GiB
-peak process memory. Allow 16 GB of RAM for headroom. There is no random sampling.
+Use Python 3.12 and the input described in [data/README.md](data/README.md).
+Allow 16 GB host RAM. Q0 and Q1 run on CPU; Q2 also requires the Evo2 CUDA stack,
+an NVIDIA GPU with FP8 support (compute capability 8.9 or later), and about 8 GB
+free disk beyond ClinVar.
 
-Create an isolated environment from the project root:
+For a fresh machine, start the NVIDIA image used by the
+[upstream Evo2 Dockerfile](evo2/Dockerfile), with this repository mounted:
 
 ```bash
-python3 -m venv .venv
+docker run --gpus all --ipc=host --rm -it \
+  -v "$PWD":/workspace -v "$HOME/.cache/huggingface":/root/.cache/huggingface \
+  -w /workspace nvcr.io/nvidia/pytorch:25.04-py3 bash
+```
+
+Inside that container, or in an existing compatible GPU environment,
+create a virtual environment that preserves the compiled CUDA packages:
+
+```bash
+python3 -m venv --system-site-packages .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m ipykernel install --user --name gamow-q0 --display-name "Gamow Q0"
-.venv/bin/jupyter lab notebooks/Q0.ipynb
+.venv/bin/python -m ipykernel install --user --name gamow --display-name "Gamow"
+.venv/bin/python -m jupyterlab notebooks/
 ```
 
-Select the **Gamow Q0** kernel and run all cells. Alternatively, execute from a
-fresh kernel at the command line:
-
-```bash
-.venv/bin/jupyter execute notebooks/Q0.ipynb --kernel_name=gamow-q0 --inplace --timeout=1200
-.venv/bin/python -m unittest discover -s notebooks/src -v
-```
-
-Configuration and workflow code live in `notebooks/src/q0.py`; notebook cells
-contain only an import and short section calls.
-
-The notebook verifies the input checksum, exports audit summaries and a
-provisional cohort under `notebooks/results/q0/`, and keeps detailed tables in dropdowns.
-It does not assign train/validation/test splits or certify that leakage is absent.
+Select the **Gamow** kernel and run each notebook from a fresh kernel in cell order.
+Dependencies are shared in [requirements.txt](requirements.txt); experiment settings,
+checks, results and limitations are documented in the notebooks.
 
 ## Data
 
 The local ClinVar VCF is excluded from Git. See [data/README.md](data/README.md)
-for its location and preparation command. `data/` contains external inputs only.
+for its location and preparation command. Q1 also writes the two shared VCF
+partitions to `data/`; other generated files live under `notebooks/results/`.
 Generated artifacts are described in [results documentation](notebooks/results/README.md).
 
 ## Machine configuration

@@ -8,8 +8,12 @@ candidate; use the simplest approach justified by validation results.
 
 - Keep dependencies, abstractions, and model complexity minimal.
 - Keep one shared `requirements.txt` at the project root for all notebooks.
-- Reserve `data/` for external input data. Store files produced by notebooks
-  under `notebooks/results/`, organized by research question (for example, `notebooks/results/q0/`).
+- Store external inputs in `data/`. Q1 also writes the shared experiment inputs
+  `data/clinvar-train.vcf` and `data/clinvar-test.vcf` there. Store other generated
+  files under `notebooks/results/`, organized by research question.
+- All subsequent experiments must use Q1's fixed VCF partitions: `clinvar-train.vcf`
+  for training and `clinvar-test.vcf` for validation. Keep their membership and
+  checksums fixed; do not resample or move variants between the files.
 - Put reusable implementation in clear Python files with explicit inputs and
   outputs. Make data preparation, feature construction, split assignment,
   training, and evaluation easy to inspect.
@@ -22,15 +26,18 @@ candidate; use the simplest approach justified by validation results.
 
 ## Validation and leakage prevention
 
-- Prioritize credible evaluation over higher scores. Freeze train, validation,
-  and test splits before fitting any learned preprocessing or model.
+- Prioritize credible evaluation over higher scores. Freeze training and
+  validation before fitting any learned preprocessing or model. The current
+  workflow has no separate test stage; the filename `clinvar-test.vcf` denotes
+  validation, not an untouched final test set.
 - Keep duplicate variants, alternate alleles at the same locus, overlapping
   sequence contexts, and related groups within one split. Keep genes disjoint
   when evaluating generalization to unseen genes.
 - Fit learned preprocessing, feature selection, and model parameters on training
   data only. Use validation data for model, hyperparameter, and threshold choices.
-  Reserve the test set for final evaluation; if used for development, replace it
-  with an untouched holdout.
+  Report these as development results; final performance claims require a separate
+  untouched holdout. Recheck group and sequence separation for each experiment,
+  especially when changing context length; stop if the fixed split is incompatible.
 - Exclude labels and label-derived information from predictor inputs. Audit
   annotation, pretrained-model, and external-data provenance for circularity and
   contamination; document unresolved risks.
@@ -41,6 +48,8 @@ candidate; use the simplest approach justified by validation results.
 ## Results and presentation
 
 - Present explanations and results as Jupyter notebooks (`.ipynb`) in `notebooks/`.
+- Name notebooks with their question number and one or two descriptive keywords,
+  separated by hyphens, for example `Q0-clinvar-summary.ipynb`.
 - Title research questions in `README.md` as `Q0`, `Q1`, and so on, followed by
   the question text. Each question must correspond to a notebook, linked from
   its README entry and identified by the same question label.
@@ -53,6 +62,8 @@ candidate; use the simplest approach justified by validation results.
   Notebook code cells should contain only imports and short calls into those files.
 - Use brief descriptions and favor informative images and plots.
 - Use tables sparingly; preferably hide detailed tables in expandable dropdowns.
+- End every notebook with a short conclusion that directly answers its research
+  question, supported by the main result and any essential uncertainty or limitation.
 - Report evaluation results, uncertainty, and practical limitations concisely.
   Clearly distinguish a reproducible research prototype from a clinically
   validated predictor.

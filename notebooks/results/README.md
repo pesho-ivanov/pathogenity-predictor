@@ -1,10 +1,11 @@
 # Generated results
 
-Files produced by project notebooks live here; external inputs belong in the project-root [data/](../../data/) directory.
+Generated reports, manifests, caches and models live here. External inputs and
+Q1's two shared VCF partitions belong in the project-root [data/](../../data/) directory.
 
 ## Q0 artifacts
 
-[Q0](../Q0.ipynb) regenerates these Git-ignored files under `notebooks/results/q0/`:
+[Q0](../Q0-clinvar-summary.ipynb) regenerates these Git-ignored files under `notebooks/results/q0/`:
 
 - `summary.json`: input provenance, quality counts, explicit filters, and limitations.
 - `cohort.csv.gz`: proposed unique SNVs, source IDs, all usable gene IDs, labels,
@@ -17,3 +18,48 @@ Files produced by project notebooks live here; external inputs belong in the pro
 There is no split assignment. Future modeling must freeze groups and splits before
 fitting anything, and establish an appropriate untouched evaluation set. Coordinate
 groups must be reconsidered with the actual sequence context and all related genes.
+
+## Q1 artifacts: splitting
+
+[Q1](../Q1-clinvar-split.ipynb) writes Git-ignored data preparation outputs to `notebooks/results/q1/`:
+
+- `protocol.json`: pinned inputs, sampling/grouping rules, split implementation
+  hash, artifact checksums and hashes of both shared VCFs. Frozen before fitting.
+- `full_cohort_groups.csv.gz`: full eligible-cohort component and split assignments,
+  retaining bridges through variants outside the pilot; no labels.
+- `split_manifest.csv`: ordered pilot variants, genes, source IDs, intervals,
+  context hashes and frozen splits; no labels.
+- `sequences.csv.gz`, `sequence_exclusions.csv`: DNA-only feature inputs and exclusions.
+- `train_labels.csv`, `validation_labels.csv`: inspectable outcome exports;
+  downstream experiments read labels from the canonical VCF files in `data/`.
+- `leakage_checks.json`: executable relationship, interval and sequence audits.
+- `split_counts.csv`, `grouping.png`, `split_sizes.png`: explanatory diagram and split sizes.
+- `environment.json`: CPU runtime, package versions, seed and preparation code hash.
+
+Q1 additionally writes `data/clinvar-train.vcf` and `data/clinvar-test.vcf`.
+The latter is the validation partition; there is no separate test stage.
+Q2 and later experiments consume these fixed partitions and verify their hashes.
+
+## Q2 artifacts: prediction
+
+[Q2](../Q2-evo2-classifier.ipynb) writes model outputs to `notebooks/results/q2/`:
+
+- `protocol.json`: model/checkpoint, feature construction, selection and evaluation
+  settings, with hashes of the Q1 data artifacts it consumes.
+- `features/<fingerprint>/*.npz`, `feature_manifest.json`: resumable DNA-only features,
+  zero-shot scores and cache hashes bound to the producing experiment.
+- `benchmark.json`, `compute.json`, `model_load.log`: synthetic order/FP8 scaling
+  checks, compute usage, environment and checkpoint loading details.
+- `*_classifier.npz`, `selection.json`: scaler means/scales, coefficients,
+  intercepts, validation scores and selected C; fitting uses training data only.
+- `validation_report_started.json`: binds the validation report to its experiment.
+- `validation_predictions.csv`, `validation_report.json`, `validation_curves.png`,
+  `auroc_intervals.png`: development results, paired component bootstrap intervals
+  and plots. Validation also selects C; the intervals do not correct selection bias.
+
+## Archived three-way experiment
+
+`archive/three_way/` preserves the preceding train/validation/test experiment's
+Q1 data, Q2 model outputs, evaluation lock, source modules and executed notebooks.
+It is separate from the current two-way workflow. Its previously evaluated test
+variants now belong to validation; they are not an untouched holdout.

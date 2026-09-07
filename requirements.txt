@@ -3,6 +3,18 @@ pandas==2.2.3
 matplotlib==3.10.1
 ipython==9.0.2
 ipykernel==6.29.5
+ipywidgets==8.1.9
 nbformat==5.10.4
 nbclient==0.10.2
 jupyterlab==4.3.6
+scikit-learn==1.6.1
+threadpoolctl==3.6.0
+biopython==1.88
+huggingface-hub==1.30.0
+vtx==1.1.0
+-e ./evo2
+
+# Q2 GPU prerequisites come from nvcr.io/nvidia/pytorch:25.04-py3.
+# Preserve its compiled stack using a venv with --system-site-packages:
+# torch 2.7.0a0+79aa17489c.nv25.4, transformer_engine 2.2.0+c55e425,
+# flash-attn 2.7.3, CUDA 12.9. Do not replace these with generic PyPI wheels.
