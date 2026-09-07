@@ -28,6 +28,7 @@ Compare methods on Q1’s current frozen missense validation set. Only results m
 | --- | --- | --- | --- | --- | --- | --- |
 | Evo2 7B base frozen head (BioNeMo, BF16) | [Q10](notebooks/Q10-evo2-7b.ipynb) | — | — | — | — | — |
 | Evo2 7B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | 17,927 / 17,927 | 0.837 [0.824, 0.849] | 0.724 [0.686, 0.755] | 2.3 h |
+| Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) | Q11 | — | — | — | — | — |
 | <hr> | <hr> | <hr> | <hr> | <hr> | <hr> | <hr> |
 | SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | 16,917 / 17,927 | 0.878 [0.865, 0.890] | 0.772 [0.734, 0.804] | 13.0 s |
 | PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | 16,430 / 17,927 | 0.894 [0.883, 0.905] | 0.822 [0.781, 0.852] | 12.4 s |
@@ -57,6 +58,7 @@ Runtime covers the recorded stages listed in the details below; hardware and cac
 | --- | --- |
 | Evo2 7B base frozen head (BioNeMo, BF16) (Q10) | Export cohort is stale |
 | Evo2 7B base zero-shot (Vortex, FP8) (Q2) | Zero-shot inference on the complete current full validation cohort. No parameters or thresholds fitted. Archived September results are not mixed with this run. Pretraining, homology and annotation overlap remain unresolved; validation is development data, not an untouched final test. Runtime: Validation scoring batches summed across runs; excludes downloads, model loading and evaluation. |
+| Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) (Q11) | The partial-epoch experiment with full validation has not completed. |
 | <hr> | <hr> |
 | SIFT4G (Q8) | dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
 | PolyPhen-2 (Q8) | HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
@@ -224,6 +226,110 @@ Keep Q1's missense partitions, 1,024-base contexts and validation selection fixe
 Report paired component-bootstrap comparisons and compute usage. The original
 1B checkpoint is BF16-sensitive, so differences do not isolate model size alone.
 
+### [Q11. How well does a 45–55-minute Evo2 7B LoRA run predict missense pathogenicity?](notebooks/Q11-evo2-lora.ipynb)
+
+Target **45–55 minutes on the current H100** for a partial-epoch run:
+
+- Train rank-8 LoRA adapters in block 30 and a linear classifier jointly; freeze
+  every original backbone tensor.
+- Use 512-base reference/alternate pairs on one canonical strand. The shortened
+  inputs passed the cross-split sequence check; retain that audit in the workflow.
+- Batch 32 variants, with at most 768 updates: **24,576 variants** from the seeded,
+  shuffled partition of 46,888 training variants. Cap training at **30 minutes**,
+  reserving time for evaluation and reporting.
+- Skip frozen-baseline extraction and hyperparameter search. Use fixed per-example
+  feature normalization and learn the classifier together with the adapters.
+- Evaluate **all 17,927 validation variants once**, then verify checkpoint reload
+  on **64 variants**.
+- Save the fully executed notebook with actual training coverage, runtime, AUROC,
+  average precision and uncertainty from whole-component bootstrap resampling.
+
+The runner has a 60-minute outer budget and can shorten training based on measured
+validation speed. The 45–55-minute duration is a target; report the actual runtime
+and stopping reason. Initial environment/model downloads are additional. This run
+estimates partial-epoch performance without a fitted frozen-baseline improvement claim.
+Run `.venv/bin/python -m notebooks.src.refresh_q11` to generate and execute every cell;
+the notebook is published only after successful full validation and checkpoint checks.
+
+<details>
+<summary>Current fine-tuning step: inputs, features, loss and tracking</summary>
+
+- **Trainable parameters.** LoRA learns small additional matrices in the input
+  and output projections of block 30's Hyena mixer (`dense_projection` and
+  `dense`). The adapters use rank 8, scaling alpha 16 and zero dropout; their
+  output matrices start at zero so they initially preserve the base model's
+  features. A randomly initialized FP32 linear classifier is trained jointly.
+  All original Evo2 weights, including final attention block 31, stay frozen.
+  The random seed is 42.
+- **DNA and features.** Use Q1's fixed July missense partitions: 46,888 training
+  variants and 17,927 development-validation variants. For each reference/alternate
+  pair, choose one canonical DNA orientation and crop 512 bases around the variant
+  from the frozen 1,024-base contexts. Recheck sequence separation after cropping.
+  Average the final block's activations over positions to obtain 4,096 values per
+  allele, then concatenate the reference representation and the
+  alternate-minus-reference difference. Normalize these two halves separately
+  by their own RMS (root mean square), with a denominator floor of `1e-6`.
+  The resulting 8,192 features are recomputed in every training forward pass,
+  allowing gradients to flow into the adapters. This implementation uses no
+  fitted scaler, cached-feature preparation stage or pretrained classifier head.
+- **Training loss.** Use class-weighted binary cross-entropy. For pathogenicity
+  probability `p` and label `y` (`1` pathogenic, `0` benign), the per-variant loss
+  is `-w_y * (y * log(p) + (1-y) * log(1-p))`, computed stably with PyTorch's
+  `binary_cross_entropy_with_logits`. Class weights are `w_c = N / (2 * N_c)`,
+  using counts from the full training partition only. Each update averages the
+  weighted gradients over its batch of 32 variants. The classifier and adapters
+  learn together from the prediction errors; validation labels never enter an update.
+- **Optimizer and stopping.** AdamW uses constant learning rates of `1e-4` for
+  both adapters and classifier, betas `(0.9, 0.999)`, epsilon `1e-8`, weight decay
+  `0.01` and joint gradient-norm clipping at `1.0`. Backbone and adapter computation
+  use BF16; pooling, the classifier, gradient accumulation and optimizer master
+  weights use FP32. Training traverses a seeded shuffle of the full training pool
+  and stops at the first applicable step or time limit. The 30-minute training
+  allowance can be shortened to reserve time within the 60-minute outer budget for all
+  validation variants, a 64-variant reload check and reporting. The reserve uses
+  measured inference speed, a 30% margin and four reporting minutes. The final
+  report records actual wall time and whether the 60-minute budget was met.
+- **Tracking and checkpoints.** Every 32 updates (1,024 variants), log progress,
+  cumulative mean weighted training loss and training-loop time; save those
+  values plus the latest pre-clipping gradient norm in checkpoint history.
+  Track peak GPU memory, the final stop reason, actual training keys and fraction
+  of the training pool seen. The displayed loss excludes AdamW weight decay.
+  Checkpoints save adapter/classifier weights, FP32 masters, optimizer state,
+  shuffle position and random-number states for resumption. Numerical checks stop
+  on non-finite loss, gradients or updated weights; completion requires changed
+  adapter weights and unchanged original backbone tensors.
+- **Validation and saved results.** After training, score all 17,927 validation
+  variants and report AUROC and average precision with 95% intervals from 1,000
+  whole-component bootstrap resamples. Reload the saved model and verify its
+  predictions on the first 64 validation variants. There is no intermediate
+  validation curve, validation-based early stopping or comparison against a
+  fitted frozen baseline in this configuration. Results describe a partial-epoch
+  development experiment, not an independent final-test evaluation.
+
+Settings live in [q11.py](notebooks/src/q11.py); feature construction, updates and
+checks live in [q11_backend.py](notebooks/src/q11_backend.py). Logs and artifacts
+are under `notebooks/results/q11/`: `environment/run.log`, `last_checkpoint.pt`,
+`final_adapter.pt`, `training_history.json`, `training_seen.csv`,
+`comparison_predictions.csv` and `metrics.json`. The history and result exports
+are written after successful validation and reload checks.
+
+</details>
+
+The archived whole-block attempt found that final attention block 31 changed no BF16
+weights or fixed-head predictions after 32 diagnostic updates. The preceding
+Hyena block (30) changed 92,362 weights and the fixed-head score after eight
+updates, with frozen parameters unchanged and probe weights restored. This motivates
+the LoRA target; actual adapter readiness is checked independently before training.
+The failed execution and numerical traces remain under `notebooks/results/q11/diagnostics/`
+and its original implementation/protocols are preserved in `notebooks/results/q11/archive/`.
+
+The [original Q11 numerical investigation](notebooks/Q11-gradient-diagnostics.ipynb)
+traces the failure to tiny native final-block weights and a block-30 residual with
+RMS about 1.2×10¹¹. A fresh optimizer probe changed 88 FP32 master elements but no
+deployed BF16 elements; AdamW epsilon and clipping further suppressed the tiny
+gradients. The executed notebook records tensor-conversion checks, branch scales,
+precision probes and the remaining uncertainty about upstream forward parity.
+
 ## Setup
 
 Use Linux x86-64 with Python 3.12, virtual-environment support, Git and curl.
@@ -238,6 +344,16 @@ python3.12 scripts/setup.py --profile cpu --test
 
 For a GPU machine, use `nvcr.io/nvidia/pytorch:25.04-py3` and run
 `python scripts/setup.py --profile gpu --test` inside the container.
+
+Q11 adds a budgeted partial-epoch, single-GPU rank-8 LoRA run. It uses 512-base
+paired alleles, batches of 32, at most 768 updates and 30 training minutes, and
+complete validation. Every original backbone weight stays frozen. Run
+`.venv/bin/python -m notebooks.src.refresh_q11` to prepare inputs and execute the
+notebook. The 45–55-minute target applies to the prepared H100 with cached dependencies
+and weights, with a 60-minute outer budget; initial installation/downloads are additional.
+Training uses BF16 with
+FP32 optimizer masters, fixed per-example normalization and resumable checkpoints.
+The runner reserves time for full validation and publishes only on success.
 
 ## Machine configuration
 
