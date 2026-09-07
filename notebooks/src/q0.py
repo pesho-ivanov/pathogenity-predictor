@@ -13,6 +13,7 @@ import resource
 import shutil
 import time
 from urllib.parse import unquote
+from urllib.request import urlopen
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, MaxNLocator
@@ -48,29 +49,52 @@ COLORS = ['#31688e', '#35b779', '#e69f00', '#cc6677', '#8172b3']
 
 # Notebook configuration. Paths are relative to this module, not the kernel cwd.
 ROOT = Path(__file__).resolve().parents[2]
-INPUT = ROOT / 'data/clinvar.vcf'
-ARCHIVE = Path('/root/data/clinvar.vcf.gz')
+INPUT = ROOT / 'data/clinvar_20260706.vcf'
+ARCHIVE = ROOT / 'data/clinvar_20260706.vcf.gz'
+URL = 'https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/archive_2.0/2026/clinvar_20260706.vcf.gz'
+ARCHIVE_MD5 = 'f78d25d49e17a070957a127e409f87b9'
 OUTPUT = ROOT / 'notebooks/results/q0'
-SHA256 = '0524586dcf9e8c8f1fe7742450b0555ac55d04a6e9a262f61db1d15f113e622a'
-FILE_DATE = '2026-09-05'
+SHA256 = '95ef7cef2b32bc5ac2edae06b27ca24442bb0b50e7e5113026129abdddefe664'
+FILE_DATE = '2026-07-06'
 REFERENCE = 'GRCh38'
 MIN_REVIEW_STARS = 2
 WINDOW_BP = 8192  # Illustrative coordinate windows, not a model-context choice.
 
 
-def ensure_input(path, archive):
-    """Use the supplied local file, or atomically decompress the local archive."""
+def verify_digest(path, expected, algorithm='sha256'):
+    if expected is not None:
+        with Path(path).open('rb') as stream:
+            actual = hashlib.file_digest(stream, algorithm).hexdigest()
+        if actual != expected:
+            raise ValueError(f'{algorithm} mismatch: {path}')
+
+
+def ensure_input(path, archive, *, url=None, archive_md5=None, expected_sha256=None):
+    """Reuse a verified VCF, or fetch and unpack a pinned archive atomically."""
     path, archive = Path(path), Path(archive)
     if path.exists():
+        verify_digest(path, expected_sha256)
         return path
     if not archive.is_file():
-        raise FileNotFoundError(f'Provide the pinned VCF at {path} or its archive at {archive}; '
-                                'no newer release will be downloaded automatically.')
+        if url is None:
+            raise FileNotFoundError(f'Provide the VCF at {path}, its archive at {archive}, or a pinned download URL.')
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        download = archive.with_name(archive.name + '.partial')
+        try:
+            print(f'Downloading {url}', flush=True)
+            with urlopen(url, timeout=60) as source, download.open('wb') as target:
+                shutil.copyfileobj(source, target, length=1024 * 1024)
+            verify_digest(download, archive_md5, 'md5')
+            download.replace(archive)
+        finally:
+            download.unlink(missing_ok=True)
+    verify_digest(archive, archive_md5, 'md5')
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + '.partial')
     try:
         with gzip.open(archive, 'rb') as source, temporary.open('xb') as target:
             shutil.copyfileobj(source, target, length=1024 * 1024)
+        verify_digest(temporary, expected_sha256)
         temporary.replace(path)
     except BaseException:
         temporary.unlink(missing_ok=True)
@@ -438,9 +462,12 @@ def export_results(frame, cohort, funnel, audit, provenance, output_dir, window_
 def load_data():
     started = time.monotonic()
     variants, provenance = read_clinvar(
-        ensure_input(INPUT, ARCHIVE), expected_sha256=SHA256,
+        ensure_input(INPUT, ARCHIVE, url=URL, archive_md5=ARCHIVE_MD5,
+                     expected_sha256=SHA256), expected_sha256=SHA256,
         expected_date=FILE_DATE, expected_reference=REFERENCE,
     )
+    provenance.update(source_url=URL, expected_archive_md5=ARCHIVE_MD5,
+                      acquisition='Pinned NCBI GRCh38 snapshot; uncompressed SHA-256 verified')
     print(f'{len(variants):,} records · {provenance["reference"]} · {provenance["fileDate"]}')
     details('Input provenance', provenance)
     details('Run configuration', {

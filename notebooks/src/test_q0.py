@@ -2,10 +2,12 @@
 
 import gzip
 import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -131,6 +133,50 @@ class ClinVarTests(unittest.TestCase):
         self.assertEqual(target.read_text(), HEADER + record())
         with self.assertRaises(FileNotFoundError):
             q0.ensure_input(self.root / 'absent.vcf', self.root / 'absent.gz')
+
+    def test_download_checksums_and_existing_file_or_archive_reuse(self):
+        raw = (HEADER + record()).encode()
+        compressed = gzip.compress(raw, mtime=0)
+        archive = self.root / 'data/input.vcf.gz'
+        target = self.root / 'data/input.vcf'
+        args = dict(url='https://example.test/pinned.vcf.gz',
+                    archive_md5=hashlib.md5(compressed).hexdigest(),
+                    expected_sha256=hashlib.sha256(raw).hexdigest())
+        with patch.object(q0, 'urlopen', return_value=io.BytesIO(compressed)) as download:
+            q0.ensure_input(target, archive, **args)
+            self.assertEqual(target.read_bytes(), raw)
+            self.assertEqual(archive.read_bytes(), compressed)
+            q0.ensure_input(target, archive, **args)
+            target.unlink()
+            q0.ensure_input(target, archive, **args)
+            download.assert_called_once_with(args['url'], timeout=60)
+        self.assertFalse(list(target.parent.glob('*.partial')))
+
+    def test_failed_download_and_checksum_do_not_publish_partial_files(self):
+        archive, target = self.root / 'input.gz', self.root / 'input.vcf'
+        with patch.object(q0, 'urlopen', side_effect=OSError('connection failed')):
+            with self.assertRaisesRegex(OSError, 'connection failed'):
+                q0.ensure_input(target, archive, url='https://example.test/pinned.gz')
+        with patch.object(q0, 'urlopen', return_value=io.BytesIO(b'bad archive')):
+            with self.assertRaisesRegex(ValueError, 'md5 mismatch'):
+                q0.ensure_input(target, archive, url='https://example.test/pinned.gz', archive_md5='wrong')
+        self.assertFalse(archive.exists())
+        self.assertFalse(target.exists())
+        archive.write_bytes(gzip.compress((HEADER + record()).encode()))
+        with self.assertRaisesRegex(ValueError, 'sha256 mismatch'):
+            q0.ensure_input(target, archive, expected_sha256='wrong')
+        self.assertFalse(target.exists())
+        self.assertFalse(list(self.root.glob('*.partial')))
+
+    def test_existing_wrong_snapshot_fails_without_download_or_overwrite(self):
+        target = self.root / 'input.vcf'
+        target.write_bytes(b'wrong snapshot')
+        with patch.object(q0, 'urlopen') as download:
+            with self.assertRaisesRegex(ValueError, 'sha256 mismatch'):
+                q0.ensure_input(target, self.root / 'input.gz',
+                                url='https://example.test/pinned.gz', expected_sha256='wrong')
+            download.assert_not_called()
+        self.assertEqual(target.read_bytes(), b'wrong snapshot')
 
     def test_export_invariants_and_determinism(self):
         frame = self.load(record(), record(identifier='2', alt='G'), record(200, '3', GENEINFO='A:1|B:2'))

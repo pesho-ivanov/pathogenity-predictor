@@ -1,4 +1,4 @@
-"""Q1: reproducible ClinVar sampling, related-variant groups, and frozen splits.
+"""Q1: reproducible ClinVar missense sampling and frozen related-variant splits.
 
 Clinical labels determine Q0 eligibility, but never sampling or split assignment.
 This module runs on CPU and does not import the modeling or GPU stack.
@@ -23,6 +23,13 @@ from . import q0
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / 'notebooks/results/q1'
+# This existing pilot remains tied to September when Q0 selects another snapshot.
+CLINVAR_INPUT = ROOT / 'data/clinvar.vcf'
+CLINVAR_ARCHIVE = ROOT / 'data/clinvar_20260905.vcf.gz'
+CLINVAR_URL = 'https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar_20260905.vcf.gz'
+CLINVAR_ARCHIVE_MD5 = 'ece04fe2ee72db1dd988d8b188df34b9'
+CLINVAR_SHA256 = '0524586dcf9e8c8f1fe7742450b0555ac55d04a6e9a262f61db1d15f113e622a'
+CLINVAR_DATE = '2026-09-05'
 REFERENCE = ROOT / 'data/hg38.fa.gz'
 REFERENCE_URL = 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
 REFERENCE_MD5 = '1c9dcaddfa41027f17cd8f7a82c7293b'
@@ -35,6 +42,25 @@ VCF_FILES = {'train': ROOT / 'data/clinvar-train-pilot.vcf',
              'validation': ROOT / 'data/clinvar-test-pilot.vcf'}
 DNA_COLUMNS = ['variant_key', 'ref_sequence', 'alt_sequence']
 BASES = 'ACGT'
+MISSENSE_SO = 'SO:0001583'
+# SHA256 of the sorted (variant_key, split) pairs from the earlier full cohort.
+# Rebuilding from the pinned VCF must preserve every established assignment.
+FULL_ASSIGNMENTS_SHA256 = '89888d17823a691eaae3af09b88102461a0f177a0c29b8fa221dac24b2916eed'
+
+
+def has_missense(raw):
+    """Accept an exact missense SO identifier among comma-separated MC terms."""
+    return isinstance(raw, str) and any(
+        term.partition('|')[0] == MISSENSE_SO for term in raw.split(','))
+
+
+def audit_missense_scope(full, pilot):
+    if not pilot.MC.astype('object').map(has_missense).all():
+        raise AssertionError('Pilot contains a variant without an exact missense annotation')
+    if fingerprint(sorted(zip(full.variant_key, full.split))) != FULL_ASSIGNMENTS_SHA256:
+        raise AssertionError('Existing full-cohort split assignments changed')
+    return {'pilot: every variant has an exact MC missense annotation': True,
+            'full: all earlier variant split assignments preserved': True}
 
 
 def digest_file(path, algorithm='sha256'):
@@ -301,8 +327,8 @@ def export_vcfs(pilot, source=None, expected_sha256=None):
     Clinical INFO fields remain available as outcomes, never predictor inputs.
     Existing exports must be byte-identical; mismatches are never overwritten.
     """
-    source = q0.INPUT if source is None else Path(source)
-    expected_sha256 = q0.SHA256 if expected_sha256 is None else expected_sha256
+    source = CLINVAR_INPUT if source is None else Path(source)
+    expected_sha256 = CLINVAR_SHA256 if expected_sha256 is None else expected_sha256
     if pilot.variant_key.duplicated().any() or set(pilot.split) != set(SPLITS):
         raise ValueError('VCF export requires unique variants and both splits')
     assignment = dict(zip(pilot.variant_key, pilot.split))
@@ -334,6 +360,10 @@ def export_vcfs(pilot, source=None, expected_sha256=None):
                         raise ValueError('Invalid VCF record')
                     key = 'GRCh38:' + b':'.join(fields[i] for i in [0, 1, 3, 4]).decode()
                     if key in assignment:
+                        info = raw.decode().rstrip('\r\n').split('\t')[7]
+                        consequence = next((item[3:] for item in info.split(';') if item.startswith('MC=')), '')
+                        if not has_missense(consequence):
+                            raise ValueError(f'Selected VCF variant lacks missense annotation: {key}')
                         if key in seen:
                             raise ValueError(f'Duplicate selected VCF variant: {key}')
                         seen.add(key)
@@ -362,7 +392,9 @@ def load_partition_labels(split, keys):
         raise ValueError('Unknown split; only train and validation are defined')
     protocol = verify_protocol()
     path = VCF_FILES[split]
-    frame, _ = q0.read_clinvar(path, protocol['vcf_exports'][path.name], q0.FILE_DATE)
+    frame, _ = q0.read_clinvar(path, protocol['vcf_exports'][path.name], CLINVAR_DATE)
+    if not frame.MC.astype('object').map(has_missense).all():
+        raise ValueError('Pilot VCF must contain only missense variants')
     frame['variant_key'] = 'GRCh38:' + frame[['chrom', 'pos', 'ref', 'alt']].astype(str).agg(':'.join, axis=1)
     expected = read_csv(OUTPUT / 'split_manifest.csv')
     expected_keys = expected.loc[expected.split.eq(split), 'variant_key'].tolist()
@@ -377,12 +409,16 @@ def load_partition_labels(split, keys):
 
 def protocol_config():
     return {'seed': SEED, 'sample_size_before_sequence_exclusions': N_VARIANTS,
-            'context_bp': CONTEXT, 'assembly': 'GRCh38', 'sampling': 'lowest SHA256(42:sample:variant_key), no labels',
+            'context_bp': CONTEXT, 'assembly': 'GRCh38',
+            'eligibility': 'Q0 filters plus exact MC SO:0001583; retain all gene associations',
+            'sampling': 'lowest SHA256(42:sample:variant_key) among eligible missense variants, no labels',
+            'full_cohort_assignment_sha256': FULL_ASSIGNMENTS_SHA256,
             'split': 'SHA256(42:split:min_full_component_variant_key), 70/30 train/validation, no labels',
             'vcf_roles': {path.name: split for split, path in VCF_FILES.items()},
             'evaluation_scope': 'Development only: clinvar-test-pilot.vcf is validation; no separate untouched test set',
-            'grouping': 'full-cohort genes, source variant/allele IDs, loci, overlapping windows; pilot identical DNA incl RC',
-            'clinvar_sha256': q0.SHA256, 'clinvar_date': q0.FILE_DATE,
+            'grouping': 'full Q0 SNV cohort including nonmissense bridges; genes, source IDs, loci, overlapping windows; pilot identical DNA incl RC',
+            'clinvar_sha256': CLINVAR_SHA256, 'clinvar_date': CLINVAR_DATE,
+            'clinvar_url': CLINVAR_URL, 'clinvar_archive_md5': CLINVAR_ARCHIVE_MD5,
             'q0_implementation_sha256': digest_file(q0.__file__),
             'reference_url': REFERENCE_URL, 'reference_md5': REFERENCE_MD5, 'reference_sha256': REFERENCE_SHA256}
 
@@ -405,8 +441,8 @@ def verify_protocol():
 def prepare():
     """Acquire/verify inputs, construct and freeze manifests, then audit them."""
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    q0.ensure_input(q0.INPUT, q0.ARCHIVE)
-    verify_file(q0.INPUT, q0.SHA256)
+    q0.ensure_input(CLINVAR_INPUT, CLINVAR_ARCHIVE, url=CLINVAR_URL,
+                    archive_md5=CLINVAR_ARCHIVE_MD5, expected_sha256=CLINVAR_SHA256)
     acquire_reference()
     config = protocol_config()
     started = time.monotonic()
@@ -416,10 +452,12 @@ def prepare():
     else:
         # Rebuild from the verified raw VCF, without trusting a mutable Q0 cache.
         print('Preparing the full Q0 cohort from the verified VCF…', flush=True)
-        frame, provenance = q0.read_clinvar(q0.INPUT, q0.SHA256, q0.FILE_DATE)
+        frame, provenance = q0.read_clinvar(CLINVAR_INPUT, CLINVAR_SHA256, CLINVAR_DATE)
         audit = q0.audit_data(frame)
-        cohort, _ = q0.propose_cohort(frame, audit)
-        columns = ['chrom', 'pos', 'ref', 'alt', 'variation_id', 'ALLELEID', 'gene_ids']
+        cohort, funnel = q0.propose_cohort(frame, audit)
+        missense_count = int(cohort.MC.astype('object').map(has_missense).sum())
+        funnel.loc[len(funnel)] = ['Exact MC SO:0001583 missense annotation', missense_count, len(cohort) - missense_count]
+        columns = ['chrom', 'pos', 'ref', 'alt', 'variation_id', 'ALLELEID', 'gene_ids', 'MC']
         full = cohort[columns].copy().reset_index(drop=True)
         for name in ['chrom', 'variation_id', 'ALLELEID', 'gene_ids']:
             full[name] = full[name].astype(str)
@@ -430,7 +468,8 @@ def prepare():
         full['start'] = full.pos - 1 - CONTEXT // 2
         full['end'] = full.start + CONTEXT
         graph = full_components(full)
-        selected = full.iloc[sample_indices(full)].copy()
+        candidates = full.loc[full.MC.astype('object').map(has_missense)].reset_index(drop=True)
+        selected = candidates.iloc[sample_indices(candidates)].copy()
         dna, exclusions = extract_contexts(selected, REFERENCE)
         merge_identical_contexts(graph, full, dna)
         full['component'] = graph.names(full.variant_key)
@@ -439,6 +478,7 @@ def prepare():
         pilot['ref_context_hash'] = dna.ref_sequence.map(context_hash)
         pilot['alt_context_hash'] = dna.alt_sequence.map(context_hash)
         audit_splits(full, pilot, dna)
+        audit_missense_scope(full, pilot)
         # A fixed split can fail feasibility; labels NEVER cause a new seed or assignment.
         for split in SPLITS:
             keys = pilot.loc[pilot.split.eq(split), 'variant_key']
@@ -450,8 +490,9 @@ def prepare():
         pilot.to_csv(OUTPUT / 'split_manifest.csv', index=False)
         dna.to_csv(OUTPUT / 'sequences.csv.gz', index=False, compression={'method': 'gzip', 'mtime': 0})
         exclusions.to_csv(OUTPUT / 'sequence_exclusions.csv', index=False)
+        funnel.to_csv(OUTPUT / 'filter_counts.csv', index=False)
         files = ['full_cohort_groups.csv.gz', 'split_manifest.csv', 'sequences.csv.gz',
-                 'sequence_exclusions.csv'] + [f'{split}_labels.csv' for split in SPLITS]
+                 'sequence_exclusions.csv', 'filter_counts.csv'] + [f'{split}_labels.csv' for split in SPLITS]
         protocol = {'config': config, 'input': provenance,
                     'implementation_sha256': digest_file(__file__),
                     'artifacts': {name: digest_file(OUTPUT / name) for name in files},
@@ -461,6 +502,7 @@ def prepare():
     pilot = read_csv(OUTPUT / 'split_manifest.csv')
     dna = read_csv(OUTPUT / 'sequences.csv.gz')
     checks = audit_splits(full, pilot, dna)
+    checks.update(audit_missense_scope(full, pilot))
     write_json(OUTPUT / 'leakage_checks.json', checks)
     write_json(OUTPUT / 'environment.json', {
         'python': platform.python_version(), 'platform': platform.platform(),
@@ -473,7 +515,7 @@ def prepare():
 
 
 def settings():
-    print('Q0 cohort → 5,000-variant pilot → frozen training / validation groups')
+    print('Q0 cohort → exact MC missense filter → 5,000-variant pilot → frozen training / validation groups')
     print('1,024-base windows · seed 42 · approximately 70% / 30% · CPU only')
     print('data/clinvar-train-pilot.vcf = training; data/clinvar-test-pilot.vcf = validation (no separate test stage).')
     q0.details('Pinned inputs and split rules', protocol_config())
@@ -529,6 +571,7 @@ def show_splits(pilot):
     counts.to_csv(OUTPUT / 'split_counts.csv')
     print('Whole groups are assigned by a fixed hash. Different group sizes make the proportions approximate.')
     q0.details('Counts, proportions and split purposes', counts)
+    q0.details('Sequential eligibility filters and retained counts', read_csv(OUTPUT / 'filter_counts.csv'))
     q0.details('Passed checks and their scope', read_json(OUTPUT / 'leakage_checks.json'))
     q0.details('Pilot manifest preview · full CSV: results/q1/split_manifest.csv',
                pilot[['variant_key', 'gene_ids', 'start', 'end', 'component', 'split']].head(15))

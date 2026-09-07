@@ -20,9 +20,10 @@ missense-only dataset and filtering criteria.
 
 ### [Q1. How should ClinVar missense variants be split for reliable evaluation on previously unseen genes?](notebooks/Q1-clinvar-split.ipynb)
 
-Define a missense-only pilot from Q0's cohort. Explain how genes, loci, source
+Build a 5,000-variant pilot from the September snapshot's 65,270 eligible missense
+SNVs using Q0's quality filters and the exact ClinVar `MC` annotation `SO:0001583`. Explain how genes, loci, source
 IDs and overlapping or identical sequence contexts connect variants into groups;
-assign whole groups to training and validation. Visualize the split sizes, verify
+preserve all earlier group assignments to training and validation. Visualize the split sizes, verify
 separation and export `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf` as the
 fixed inputs for all later experiments. The latter file contains validation data.
 
@@ -95,8 +96,9 @@ and a [bundled source catalog](notebooks/src/q8_catalog.json).
 
 ## Data
 
-The local ClinVar VCF is excluded from Git. See [data/README.md](data/README.md)
-for its location and preparation command. Q1 also writes the two shared VCF
+Q0 automatically downloads the dated **6 July 2026** ClinVar snapshot into `data/`
+when missing. Q1/Q2 retain their separately pinned **5 September 2026** pilot input.
+See [data/README.md](data/README.md) for filenames and checksum checks. Q1 also writes the two shared VCF
 partitions to `data/`; other generated files live under `notebooks/results/`.
 Generated artifacts are described in [results documentation](notebooks/results/README.md).
 

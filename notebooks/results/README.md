@@ -5,12 +5,13 @@ Q1's two shared VCF partitions belong in the project-root [data/](../../data/) d
 
 ## Scope of existing results
 
-The project now targets **missense variants only**. The current Q0–Q2 outputs and
-pilot VCFs retain the earlier broad-SNV cohort; their counts and scores are not
-missense-only results. Their code and frozen artifacts have not been rebuilt.
+Q1's pilot VCFs and manifests now contain **missense variants only**. Q0 now audits the downloaded **6 July 2026** snapshot. Q1/Q2 preserve the
+**5 September 2026** snapshot and assignments used to build the existing pilot.
+Q2's missense inputs have been prepared; feature extraction, fitting and validation
+must be rerun to obtain missense results. The earlier broad-SNV experiment is
+preserved in `archive/broad_snv_before_missense/`.
 Q8 retains its earlier broader survey as background; splicing and regulatory
-experiments are outside the current scope. New experiments require frozen
-missense-only inputs and corresponding baseline results.
+experiments are outside the current scope.
 
 ## Q0 artifacts
 
@@ -34,20 +35,22 @@ groups must be reconsidered with the actual sequence context and all related gen
 
 - `protocol.json`: pinned inputs, sampling/grouping rules, split implementation
   hash, artifact checksums and hashes of both shared VCFs. Frozen before fitting.
-- `full_cohort_groups.csv.gz`: full eligible-cohort component and split assignments,
-  retaining bridges through variants outside the pilot; no labels.
-- `split_manifest.csv`: ordered pilot variants, genes, source IDs, intervals,
-  context hashes and frozen splits; no labels.
+- `full_cohort_groups.csv.gz`: full Q0 SNV cohort component and split assignments,
+  retaining nonmissense and unsampled bridges, with `MC` annotations for auditing; no labels.
+- `split_manifest.csv`: ordered missense pilot variants, genes, source IDs, intervals,
+  `MC` annotations, context hashes and frozen splits; no labels.
+- `filter_counts.csv`: Q0 filtering stages plus the exact missense consequence filter.
 - `sequences.csv.gz`, `sequence_exclusions.csv`: DNA-only feature inputs and exclusions.
 - `train_labels.csv`, `validation_labels.csv`: inspectable outcome exports;
   downstream experiments read labels from the canonical VCF files in `data/`.
-- `leakage_checks.json`: executable relationship, interval and sequence audits.
+- `leakage_checks.json`: executable relationship, interval, sequence and missense
+  eligibility audits, including preservation of all earlier split assignments.
 - `split_counts.csv`, `grouping.png`, `split_sizes.png`: explanatory diagram and split sizes.
 - `environment.json`: CPU runtime, package versions, seed and preparation code hash.
 
 Q1 additionally writes `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf`.
 The latter is the validation partition; there is no separate test stage.
-The recorded Q2 experiment consumes these fixed partitions and verifies their hashes.
+Q2 consumes these fixed missense partitions and verifies their hashes.
 
 ## Q2 artifacts: prediction
 
@@ -86,3 +89,9 @@ and audit the selected tools' actual training provenance and sequence contexts.
 Q1 data, Q2 model outputs, evaluation lock, source modules and executed notebooks.
 It is separate from the current two-way workflow. Its previously evaluated test
 variants now belong to validation; they are not an untouched holdout.
+
+## Q0 snapshot transition
+
+`archive/before_q0_july_download/` preserves the earlier Q0 results and notebook,
+plus the Q1/Q2 protocols before adding automatic downloads. Q0 now reads the
+July snapshot; Q1/Q2 keep their September input, pilot contents and assignments.

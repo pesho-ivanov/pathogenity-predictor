@@ -103,6 +103,36 @@ class GroupingTests(unittest.TestCase):
 
 
 
+class MissenseTests(unittest.TestCase):
+    def test_scope_audit_rejects_nonmissense_and_moved_variants(self):
+        full = manifest([2000, 10000], ['1|2', '3']).assign(split=['train', 'validation'])
+        full['MC'] = ['SO:0001583|missense_variant,SO:0001627|intron_variant',
+                      'SO:0001819|synonymous_variant']
+        expected = q1.fingerprint(sorted(zip(full.variant_key, full.split)))
+        with patch.object(q1, 'FULL_ASSIGNMENTS_SHA256', expected):
+            pilot = full.loc[full.MC.map(q1.has_missense)].copy()
+            self.assertEqual(pilot.gene_ids.tolist(), ['1|2'])
+            self.assertTrue(all(q1.audit_missense_scope(full, pilot).values()))
+            with self.assertRaisesRegex(AssertionError, 'missense annotation'):
+                q1.audit_missense_scope(full, full)
+            changed = full.copy()
+            changed.loc[0, 'split'] = 'validation'
+            with self.assertRaisesRegex(AssertionError, 'assignments changed'):
+                q1.audit_missense_scope(changed, pilot)
+
+    def test_exact_so_id_and_multiple_consequences(self):
+        for value in ['SO:0001583|missense_variant',
+                      'SO:0001627|intron_variant,SO:0001583|missense_variant',
+                      'SO:0001583|missense_variant,SO:0001819|synonymous_variant']:
+            with self.subTest(value=value):
+                self.assertTrue(q1.has_missense(value))
+        for value in ['', '.', None, float('nan'), 'missense_variant',
+                      'SO:0001819|missense_variant', 'SO:00015830|missense_variant',
+                      'SO:0001627|intron_variant', 'SO:0001819|synonymous_variant']:
+            with self.subTest(value=value):
+                self.assertFalse(q1.has_missense(value))
+
+
 class SequenceTests(unittest.TestCase):
     def test_reference_and_exact_mutation(self):
         ref, alt, reason = q1.mutate_context('A' * 3000, 1500, 'A', 'T')
@@ -123,6 +153,14 @@ class SequenceTests(unittest.TestCase):
 
 
 class FrozenDataTests(unittest.TestCase):
+    def test_pilot_snapshot_does_not_follow_q0_snapshot_changes(self):
+        expected = q1.protocol_config()
+        with patch.object(q1.q0, 'FILE_DATE', '2000-01-01'), \
+                patch.object(q1.q0, 'SHA256', 'different-snapshot'), \
+                patch.object(q1.q0, 'INPUT', Path('/different/input.vcf')):
+            self.assertEqual(q1.protocol_config(), expected)
+            self.assertEqual(q1.CLINVAR_DATE, '2026-09-05')
+
     def test_protocol_rejects_changed_data_and_settings(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -168,7 +206,7 @@ class VCFExportTests(unittest.TestCase):
                        '##fileDate=2026-09-05\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
         self.records = [f'1\t{pos}\t{i+100}\tA\tC\t.\t.\t'
                         f'ALLELEID={i+200};CLNSIG={label};GENEINFO=G{i}:{i+1};'
-                        'CLNREVSTAT=reviewed_by_expert_panel\n'
+                        'CLNREVSTAT=reviewed_by_expert_panel;MC=SO:0001583|missense_variant\n'
                         for i, (pos, label) in enumerate(zip([2000, 10000, 20000, 40000],
                                                             ['Benign', 'Pathogenic'] * 2))]
         self.source.write_text(self.header + ''.join(self.records))
@@ -202,6 +240,16 @@ class VCFExportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'checksum'):
             q1.export_vcfs(self.pilot, self.source, 'wrong-checksum')
         self.assertFalse(any(path.exists() for path in self.files.values()))
+
+    def test_nonmissense_or_missing_consequences_fail_without_publishing(self):
+        for annotation in ['MC=SO:0001819|synonymous_variant', 'MC=.']:
+            with self.subTest(annotation=annotation):
+                text = self.header + ''.join(self.records)
+                self.source.write_text(text.replace('MC=SO:0001583|missense_variant', annotation, 1))
+                with self.assertRaisesRegex(ValueError, 'lacks missense'):
+                    self.export()
+                self.assertFalse(any(path.exists() for path in self.files.values()))
+                self.assertFalse(list(self.root.glob('*.partial')))
 
     def test_changed_export_is_not_overwritten(self):
         self.export()

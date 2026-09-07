@@ -100,12 +100,12 @@ def load_inputs():
                          'vcf_exports': split_protocol['vcf_exports']}, frozen=True)
     verify_protocol()
     assert_evaluation_identity(experiment_identity())
-    print(f"Loaded {len(pilot):,} variants from Q1's frozen manifests; model outputs: results/q2/.")
+    print(f"Loaded {len(pilot):,} missense variants from Q1's frozen manifests; model outputs: results/q2/.")
     return sequences
 
 
 def settings():
-    print('Q1 frozen splits · 1,024 bases · Evo2 1B · validation selects C · seed 42')
+    print('Q1 frozen missense splits · 1,024 bases · Evo2 1B · validation selects C · seed 42')
     q0.details('Model, features, selection rules and limitations', protocol_config())
 
 
@@ -560,4 +560,3 @@ def run_checks():
     if not result.wasSuccessful():
         raise AssertionError(stream.getvalue())
     print(f'{result.testsRun} model, feature and cache isolation tests passed.')
-
