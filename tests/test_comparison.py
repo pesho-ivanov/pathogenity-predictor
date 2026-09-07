@@ -416,6 +416,78 @@ class ComparisonTests(unittest.TestCase):
                     c.update_readme(self.root, 'new results')
                 self.assertEqual(readme.read_text(), text)
 
+    def test_lookup_runtime_uses_current_provenance_and_rejects_old_cohorts(self):
+        self.q8()
+        path = self.results / 'q8/baseline_provenance.json'
+        provenance = c.read_json(path) | {'elapsed_seconds': 96.05}
+        path.write_text(json.dumps(provenance))
+        result, section = c.refresh(self.root, repetitions=10)
+        row = next(row for row in result['methods'] if row['id'] == 'q8:AlphaMissense')
+        self.assertEqual(row['runtime_seconds'], 96.05)
+        self.assertIn('| Runtime |', section)
+        self.assertIn('1.6 min', section)
+        self.assertIn('CPU score lookup/evaluation', section)
+        self.assertIn('runtime_seconds', pd.read_csv(self.results / 'comparison/methods.csv').columns)
+        provenance['q1_protocol_sha256'] = 'older-cohort'
+        path.write_text(json.dumps(provenance))
+        row = next(row for row in c.collect(self.root, repetitions=10)['methods']
+                   if row['id'] == 'q8:AlphaMissense')
+        self.assertNotIn('runtime_seconds', row)
+        self.assertEqual(c.format_runtime(row), '—')
+
+    def test_optional_export_runtime_does_not_hide_metrics_when_missing_or_invalid(self):
+        self.export()
+        path = self.results / 'q10/comparison_results.json'
+        spec = c.read_json(path)
+        for seconds, expected in [(0, '0 s'), (.025, '0.025 s'), (42, '42.0 s'), (7200, '2.0 h'),
+                                  (-1, '—'), (float('inf'), '—'), ('12', '—'), (True, '—')]:
+            with self.subTest(seconds=seconds):
+                spec['runtimes'] = {'score': {'seconds': seconds, 'scope': 'Inference only'}}
+                path.write_text(json.dumps(spec))
+                row = next(row for row in c.collect(self.root, repetitions=10)['methods']
+                           if row['id'] == 'q10:score')
+                self.assertIn('metrics', row)
+                self.assertEqual(c.format_runtime(row), expected)
+        spec.pop('runtimes')
+        path.write_text(json.dumps(spec))
+        row = next(row for row in c.collect(self.root, repetitions=10)['methods'] if row['id'] == 'q10:score')
+        self.assertIn('metrics', row)
+        self.assertEqual(c.format_runtime(row), '—')
+
+    def test_7b_runtime_follows_verified_score_manifest_and_propagates(self):
+        self.export('q2')
+        directory = self.results / 'q2'
+        self.labels.assign(zero_shot_7b=[.1, .9, .8, .2]).to_csv(directory / 'comparison_predictions.csv', index=False)
+        timing_path = self.dump('notebooks/results/q2/7b/score_manifest.json', {'batch_seconds': 180})
+        report_path = self.dump('notebooks/results/q2/7b/metrics.json', {
+            'artifacts': {'score_manifest.json': c.digest(timing_path)}})
+        spec_path = directory / 'comparison_results.json'
+        spec = c.read_json(spec_path) | {'methods': {'zero_shot_7b': '7B zero-shot'},
+            'predictions_sha256': c.digest(directory / 'comparison_predictions.csv'),
+            'artifacts': {'7b/metrics.json': c.digest(report_path)}}
+        spec_path.write_text(json.dumps(spec))
+        result, section = c.refresh(self.root, repetitions=10)
+        row = next(row for row in result['methods'] if row['id'] == 'q2:zero_shot_7b')
+        self.assertEqual(row['runtime_seconds'], 180)
+        self.assertIn('3.0 min', section)
+        signature = c.source_signature(self.root)
+        self.assertIn('notebooks/results/q2/7b/score_manifest.json', signature)
+        timing_path.write_text(json.dumps({'batch_seconds': 999}))
+        self.assertNotEqual(signature, c.source_signature(self.root))
+        row = next(row for row in c.collect(self.root, repetitions=10)['methods']
+                   if row['id'] == 'q2:zero_shot_7b')
+        self.assertIn('metrics', row)
+        self.assertNotIn('runtime_seconds', row)
+        self.assertIn('Checksum mismatch', row['runtime_error'])
+
+    def test_frozen_head_runtime_sums_extraction_and_fitting(self):
+        timing = self.dump('notebooks/results/q10/feature_manifest.json', {'seconds': 2000})
+        report = self.dump('notebooks/results/q10/metrics.json', {
+            'fit_seconds': 80, 'artifacts': {'feature_manifest.json': c.digest(timing)}})
+        value = c.load_runtime(self.root, 'q10:frozen_7b', {'artifacts': {'metrics.json': c.digest(report)}})
+        self.assertEqual(value['runtime_seconds'], 2080)
+        self.assertIn('classifier fitting', value['runtime_scope'])
+
     def wait_for(self, predicate):
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:

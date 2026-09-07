@@ -20,6 +20,14 @@ refresh service. Notebook saves and relevant result-file changes trigger an atom
 refresh after a short quiet period. Only the section between `<!-- comparison:start -->`
 and `<!-- comparison:end -->` is replaced; surrounding README edits are preserved.
 The README presents evaluation tables without a chart of methods on the Y-axis.
+The runtime column uses recorded timings only for methods whose cohort and result
+checks pass. Its measured stages appear in the expandable details; missing,
+invalid or historical timings appear as `—`. Durations use seconds, minutes or
+hours and are also exported as `runtime_seconds` and `runtime_scope` in the
+comparison summary and CSV. Shared-subset metrics do not imply a separate timed run.
+Published-score lookup times exclude upstream model training. Evo2 timings cover
+the recorded inference/extraction and fitting stages, with setup and evaluation
+excluded where stated; hardware, downloads and cache reuse differ across workflows.
 Commit and push the README to publish updates.
 Source notebooks are never executed by the watcher; editing displayed numbers or
 prose does not change the underlying predictions.
@@ -39,11 +47,16 @@ coverage; an optional `component` column must match Q1. Export
   "q1_protocol_sha256": "SHA-256 of results/q1/full/protocol.json",
   "predictions_sha256": "SHA-256 of comparison_predictions.csv",
   "methods": {"score_column": "Method display name"},
+  "runtimes": {"score_column": {"seconds": 123.4, "scope": "Inference only; excludes downloads and model loading"}},
   "limitations": "Selection, external training and calibration caveats"
 }
 ```
 
 The watcher discovers these exports automatically and prefers the full Q1 protocol.
+`runtimes` is optional and keyed by the same score columns as `methods`; provide
+finite, nonnegative measured seconds and a description of the included stages.
+For existing 7B exports, the collector follows result checksums to the recorded
+scoring or feature manifests without changing the producing experiment.
 An invalid or incomplete full dataset never falls back to pilot metrics. The
 comparison records the ClinVar date and cohort scope, and watches both full VCFs.
 Match the exact Q1 validation
@@ -192,65 +205,55 @@ from Q2 as a historical result on its separately archived September pilot.
 
 ## Q8 artifacts: missense survey and external predictors
 
-[Q8](../Q8-existing-tools.ipynb) renders the reviewed catalog in
-`notebooks/src/q8_catalog.json` offline, then acquires pinned published scores
-when absent and benchmarks the fixed pilot. The reference AlphaMissense workflow
-writes directly to `notebooks/results/q8/`:
+[Q8](../Q8-existing-tools.ipynb) executes [q8_full.py](../src/q8_full.py) on
+all **17,927 July validation variants** from the complete frozen Q1 partitions.
+It reruns Q1's full eligibility and sequence/group leakage checks, then looks up
+published AlphaMissense, REVEL, SIFT4G, PolyPhen-2 HumVar and EVE scores. Clinical
+labels are read from the full validation VCF only after lookup. No model fitting,
+recalibration, threshold tuning or variant sampling occurs.
 
-- `survey.json`, `tool_comparison.csv`: dated tool comparisons and source URLs.
-- `tool_landscape.png`, `baseline_shortlist.png`: missense methods and the selected reference.
-- `provenance.json`: catalog/code hashes, dependencies, artifact checksums and
-  executable catalog consistency checks.
+Current artifacts live under `q8/full/`. Its root contains the shared frozen
+`protocol.json`, copied and verified `leakage_checks.json`, and the overlaid
+`validation_curves.png`. AlphaMissense writes its per-method files there; REVEL,
+SIFT4G, PolyPhen-2 and EVE write under `revel/`, `sift4g/`, `polyphen2/` and `eve/`:
 
-- `baseline_protocol.json`: pinned score source, exact-allele matching, maximum
-  transcript score aggregation and evaluation settings recorded before reading outcomes.
-- `pilot_scores.csv`: one row per frozen pilot variant, continuous score or missing
-  status, annotation/transcript counts, minimum score and score range; no labels.
-- `matched_annotations.csv`: every matching transcript/protein annotation and score.
-- `pilot_evaluation.csv`: scores joined to unchanged partitions, components and
-  ClinVar outcomes; used for evaluation only, never as predictor input.
-- `coverage.csv`, `coverage.png`: scored/missing counts by partition and class.
-- `validation_metrics.json`, `validation_curves.png`: AUROC, average precision,
-  component-bootstrap 95% intervals (1,000 replicates, seed 42), and ROC/PR curves.
-- `baseline_provenance.json`: input/code/output hashes, original archive header,
-  licenses, dependencies, compute and rerun Q1 leakage checks.
+- `baseline_protocol.json`: tool, pinned release, score definition, full Q1
+  protocol/VCF checksums, shared full Q8 protocol hash and producing source hashes.
+- `validation_scores.csv`: every full validation key, score or missing status,
+  annotation counts and score ranges; no clinical labels.
+- `matched_annotations.csv`: every matching source annotation, including raw and
+  oriented score entries for dbNSFP tools and transcript/protein mapping fields.
+- `validation_predictions.csv`: all validation keys joined to Q1 components and
+  ClinVar labels after scoring; the README's verified prediction source.
+- `coverage.csv`: scored/missing counts by ClinVar class, keeping the complete
+  validation denominator. Missing scores are never imputed as benign.
+- `validation_metrics.json`: AUROC and average precision on scored variants,
+  with 1,000 component-bootstrap replicates, seed 42 and percentile 95% intervals.
+- `baseline_provenance.json`: completion marker written last, binding acquisition,
+  source code, Q1 inputs, audit checks and every result checksum. It records the
+  measured CPU lookup/evaluation duration; shared dbNSFP acquisition is excluded
+  from the three dbNSFP methods' individual timings.
 
-ClinVar remains the ground truth. AlphaMissense uses ClinVar calibration, whose
-exact overlap is unresolved. Metrics apply to covered validation variants and are
-development results; neither independent clinical validation nor a tool ranking.
-Missing scores are never imputed as benign. No Q2 models are fitted by Q8.
+The full dbNSFP extraction is kept separately in
+`data/dbnsfp4.9a/full-validation/`, reusing the verified raw `blocks/` cache.
+`q8/full/primateai3d/access_status.json` records the licensed-data blocker against
+this full cohort. No PrimateAI-3D predictions or substitute PrimateAI scores are made.
 
-The additional [REVEL workflow](../src/q8_revel.py) writes the same artifact names
-under `notebooks/results/q8/revel/`. `pilot_scores.csv` and `pilot_evaluation.csv`
-use the score column `revel`; `matched_annotations.csv` retains all source fields,
-including both genome-build coordinates and semicolon-separated transcript IDs.
-Only exact `grch38_pos`/REF/ALT matches receive scores. Missing mappings never use
-`hg19_pos`; transcript aggregation uses the maximum score fixed before reading labels.
-Provenance records the pinned v1.3 archive identity, full scan counts, rows without
-GRCh38 positions, Q1 audits, source hashes and the shared evaluation implementation.
-The completion manifest is written last. The README comparison verifies REVEL and
-AlphaMissense independently and compares their continuous scores on shared variants.
-REVEL's HGMD and constituent-tool training overlap with ClinVar remains unresolved.
+The README accepts only complete matching validation exports, preserves missing
+scores, and recomputes metrics on the intersection scored by every available
+method. Clinical training/calibration and evolutionary-data overlap remain
+unresolved; these are development results, not independent clinical validation.
 
-The [remaining-tool workflow](../src/q8_remaining.py) writes the same evaluation
-artifacts under `q8/sift4g/`, `q8/polyphen2/` and `q8/eve/`. Each `score` column
-increases with predicted pathogenicity: SIFT4G uses `1 - raw_score`, PolyPhen-2
-uses HumVar, and EVE uses continuous scores without uncertainty-category filtering.
-Aggregate by maximum across exact GRCh38 allele matches and score-list entries.
-`matched_annotations.csv` retains raw and oriented scores, source-row and score-list
-indices, and transcript/protein mappings. `pilot_scores.csv` distinguishes missing
-tool scores from absent exact-allele mappings; no missing value is imputed.
+Historical September pilot notebooks, implementations, `pilot_scores.csv`,
+`pilot_evaluation.csv`, survey exports and results remain under
+`archive/before_shared_july_snapshot/`. The notebook present before this refresh is
+also copied to `archive/q8_before_full_validation/`. The dated method survey stays
+available in `notebooks/src/q8_catalog.json` and the README methodology table.
 
-Each completion manifest binds the results to the pinned dbNSFP4.9a extraction,
-acquisition code, scoring code, shared evaluator, Q1 inputs and local leakage
-audits. ClinVar fields are excluded from the extracted predictor input. Training
-overlap is unresolved for PolyPhen-2; evolutionary sequence exposure and coverage
-remain limitations for SIFT4G and EVE. The README independently verifies each tool
-and recomputes a common scored validation subset across available methods.
-
-`q8/primateai3d/access_status.json` records the missing licensed data access and
-official instructions. It produces no predictions or performance estimate;
-the original PrimateAI model is not substituted for PrimateAI-3D.
+To regenerate Q8 automatically, run
+`.venv/bin/python -m notebooks.src.refresh_q8` from the repository root. The runner
+executes every code cell with a fresh Gamow kernel, retains all outputs/counts,
+and replaces the saved notebook only after successful execution.
 
 ## Q9 artifacts: Evo2 1B fine-tuning
 

@@ -24,18 +24,30 @@ Compare methods on Q1’s current frozen missense validation set. Only results m
 
 **17,927 missense validation variants · ClinVar 2026-07-06 · full cohort**
 
-| Method | Notebook | Paper | Scored / validation | AUROC [95% CI] | Average precision [95% CI] |
-| --- | --- | --- | --- | --- | --- |
-| Evo2 1B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | — | — | — |
-| SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | — | — | — |
-| PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | — | — | — |
-| REVEL | [Q8](notebooks/Q8-existing-tools.ipynb) | [Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016) | — | — | — |
-| AlphaMissense | [Q8](notebooks/Q8-existing-tools.ipynb) | [Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492) | — | — | — |
-| EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | — | — | — |
-| Evo2 1B base frozen head (BioNeMo, BF16) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — |
-| Sequence baseline (Evo2 1B experiment) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — |
-| Evo2 7B base frozen head (BioNeMo, BF16) | [Q10](notebooks/Q10-evo2-7b.ipynb) | — | — | — | — |
-| PrimateAI-3D (licensed) | [Q8](notebooks/Q8-existing-tools.ipynb) | [Gao et al. (2023)](https://doi.org/10.1126/science.abn8197) | — | — | — |
+| Method | Notebook | Paper | Scored / validation | AUROC [95% CI] | Average precision [95% CI] | Runtime |
+| --- | --- | --- | --- | --- | --- | --- |
+| Evo2 1B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | — | — | — | — |
+| SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | 16,917 / 17,927 | 0.878 [0.865, 0.890] | 0.772 [0.734, 0.804] | 13.0 s |
+| PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | 16,430 / 17,927 | 0.894 [0.883, 0.905] | 0.822 [0.781, 0.852] | 12.4 s |
+| REVEL | [Q8](notebooks/Q8-existing-tools.ipynb) | [Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016) | 17,720 / 17,927 | 0.974 [0.970, 0.978] | 0.958 [0.945, 0.968] | 1.8 min |
+| AlphaMissense | [Q8](notebooks/Q8-existing-tools.ipynb) | [Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492) | 16,884 / 17,927 | 0.962 [0.956, 0.967] | 0.940 [0.923, 0.951] | 1.2 min |
+| EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | 9,284 / 17,927 | 0.909 [0.889, 0.925] | 0.916 [0.889, 0.935] | 5.5 s |
+| Evo2 1B base frozen head (BioNeMo, BF16) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — | — |
+| Sequence baseline (Evo2 1B experiment) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — | — |
+| Evo2 7B base frozen head (BioNeMo, BF16) | [Q10](notebooks/Q10-evo2-7b.ipynb) | — | — | — | — | — |
+| PrimateAI-3D (licensed) | [Q8](notebooks/Q8-existing-tools.ipynb) | [Gao et al. (2023)](https://doi.org/10.1126/science.abn8197) | — | — | — | — |
+
+Runtime covers the recorded stages listed in the details below; hardware and caching differ between workflows. “—” means no verified timing is available for the current cohort.
+
+**Direct comparison on the same variants**
+
+| Method | Shared variants | AUROC [95% CI] | Average precision [95% CI] |
+| --- | --- | --- | --- |
+| SIFT4G (Q8) | 8817 | 0.887 [0.872, 0.901] | 0.881 [0.853, 0.906] |
+| PolyPhen-2 (Q8) | 8817 | 0.900 [0.887, 0.913] | 0.903 [0.879, 0.925] |
+| REVEL (Q8) | 8817 | 0.972 [0.966, 0.978] | 0.976 [0.967, 0.984] |
+| AlphaMissense (Q8) | 8817 | 0.961 [0.953, 0.968] | 0.967 [0.957, 0.975] |
+| EVE (Q8) | 8817 | 0.911 [0.893, 0.928] | 0.921 [0.899, 0.940] |
 
 <details>
 <summary>Provenance, missing results and limitations</summary>
@@ -43,15 +55,15 @@ Compare methods on Q1’s current frozen missense validation set. Only results m
 | Method | Details |
 | --- | --- |
 | Evo2 1B base zero-shot (Vortex, FP8) (Q2) | Q2 cohort is stale |
-| SIFT4G (Q8) | Q8 cohort is stale |
-| PolyPhen-2 (Q8) | Q8 cohort is stale |
-| REVEL (Q8) | Q8 cohort is stale |
-| AlphaMissense (Q8) | Q8 cohort is stale |
-| EVE (Q8) | Q8 cohort is stale |
+| SIFT4G (Q8) | dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
+| PolyPhen-2 (Q8) | HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
+| REVEL (Q8) | HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training. |
+| AlphaMissense (Q8) | ClinVar calibration overlap unresolved; maximum matching transcript score. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training. |
+| EVE (Q8) | dbNSFP4.9a continuous EVE score; maximum across matches, no confidence-category filtering. Limited protein/position coverage. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
 | Evo2 1B base frozen head (BioNeMo, BF16) (Q9) | Q9 cohort is stale |
 | Sequence baseline (Evo2 1B experiment) (Q9) | Q9 cohort is stale |
 | Evo2 7B base frozen head (BioNeMo, BF16) (Q10) | Export cohort is stale |
-| PrimateAI-3D (Q8) | Requires licensed data; no predictions for the current cohort. |
+| PrimateAI-3D (Q8) | PrimateAI-3D has not been run: Illumina requires a signed license agreement and supplies the score/model download link by email. No approved link or licensed score file was provided. The original PrimateAI scores in dbNSFP are a different model and are not substituted. |
 
 ```json
 {
@@ -67,26 +79,20 @@ Compare methods on Q1’s current frozen missense validation set. Only results m
   },
   "source_errors": {
     "Q2": "Q2 cohort is stale",
-    "Q8 AlphaMissense": "Q8 cohort is stale",
-    "Q8 REVEL": "Q8 cohort is stale",
-    "Q8 SIFT4G": "Q8 cohort is stale",
-    "Q8 PolyPhen-2": "Q8 cohort is stale",
-    "Q8 EVE": "Q8 cohort is stale",
     "Q9": "Q9 cohort is stale",
-    "Q8 PrimateAI-3D": "PrimateAI-3D access report is stale or invalid",
     "Q10": "Export cohort is stale"
   },
   "bootstrap": {
     "repetitions": 1000,
     "seed": 42
   },
-  "generated_utc": "2026-09-07T19:03:54.896347+00:00"
+  "generated_utc": "2026-09-07T20:31:45.583530+00:00"
 }
 ```
 
 </details>
 
-**Conclusion.** No verified metrics are currently available. Complete the source experiments or resolve the listed input checks.
+**Conclusion.** Use the common-subset comparison to assess methods; coverage remains a separate limitation.
 
 These are development results: validation participates in model selection. AlphaMissense calibration and REVEL/PolyPhen-2 training overlap with ClinVar remain unresolved. The 95% intervals resample whole Q1 components and do not correct selection bias or establish clinical validity.
 <!-- comparison:end -->
@@ -190,11 +196,13 @@ Freeze training labels at an earlier release and evaluate variants that later
 receive clear classifications. This requires historical snapshots and careful
 provenance checks, but would test usefulness beyond reproducing existing labels.
 
-### [Q8. What in silico tools currently exist for predicting missense variant pathogenicity, and which are suitable baselines for this project?](notebooks/Q8-existing-tools.ipynb)
+### [Q8. Which existing missense predictors are practical baselines, and how do they perform on the full validation dataset?](notebooks/Q8-existing-tools.ipynb)
 
 Compare six missense predictors and evaluate AlphaMissense, REVEL, SIFT4G,
-PolyPhen-2 HumVar and EVE using pinned published scores on Q1's fixed GRCh38 pilot.
-Report coverage and validation performance with component-bootstrap intervals;
+PolyPhen-2 HumVar and EVE using pinned published scores on all **17,927** variants
+in Q1's full GRCh38 validation VCF from **6 July 2026**. Preserve missing scores,
+report coverage and performance with component-bootstrap intervals, and compare
+available methods on the same scored variants. Historical pilot results remain archived;
 PrimateAI-3D requires an approved licensed download. ClinVar remains the ground
 truth; external calibration and training overlap limit independence claims.
 
@@ -249,3 +257,39 @@ visible to this environment, not minimum project requirements.
 The system Python is externally managed (PEP 668): direct `pip install` commands
 are blocked. Use a virtual environment and its Jupyter kernel for package
 changes.
+
+## Next steps
+
+Use the frozen July partitions throughout development: **46,888 training and
+17,927 validation variants**. Work in this order, keeping completed results and
+their protocols reproducible.
+
+1. **Complete the full-cohort Evo2 baselines (Q2, Q9, Q10).** Finish zero-shot
+   scoring and train the sequence baseline and frozen 1B/7B classifiers on the
+   full training partition. Fit preprocessing on training data only. Publish
+   current-cohort predictions through fully executed notebooks and refresh the
+   comparison above; preserve the archived pilot runs.
+2. **Explain coverage and audit independence (Q8).** Break down missing published
+   scores by gene, class and annotation/matching failure. Investigate overlap
+   with predictor training and calibration data, including related proteins and
+   pretraining sequences, and document what remains unknown. Add PrimateAI-3D
+   when an approved licensed score file becomes available.
+3. **Measure whether Evo2 adds value (Q2, Q8–Q10).** Compare completed methods on
+   the same variants, reporting paired component-bootstrap intervals for
+   differences in AUROC and average precision. Keep coverage visible alongside
+   these comparisons, and report runtime and memory with their measurement
+   scope. Use the results to choose the simplest justified approach.
+4. **Test targeted improvements (Q4, Q9).** Once the baselines are complete,
+   evaluate longer context or light fine-tuning where the results justify the
+   added cost. Change one methodological choice at a time and retain the fixed
+   partitions. Recheck sequence and group separation before each experiment;
+   stop if a context change makes the split incompatible.
+5. **Evaluate confidence and abstention (Q6).** Fit calibration using
+   training-only folds, select operating thresholds on development validation,
+   and report calibration error and error rates at different retained coverage
+   levels. Include uncertainty across held-out gene groups.
+6. **Prepare an untouched final evaluation (Q7).** Define and freeze a separate
+   temporal holdout, with variant, gene and sequence separation checks, before
+   inspecting its outcomes. Lock the selected model, calibration and thresholds
+   before scoring it. The current `clinvar-test.vcf` remains development
+   validation; external training overlap must still be reported.

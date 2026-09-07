@@ -109,6 +109,12 @@ archived BioNeMo frozen classifier.
 
 ## Q8 AlphaMissense scores
 
+Q8's current [full-validation workflow](../notebooks/src/q8_full.py) verifies both
+full Q1 VCFs and evaluates every one of the **17,927** July validation variants.
+Only genomic keys enter lookup; ClinVar labels are joined afterwards. It reuses
+the pinned sources and aggregation rules below, with new outputs under
+`notebooks/results/q8/full/`. Historical pilot results remain in the dated archive.
+
 [Q8](../notebooks/Q8-existing-tools.ipynb) downloads the published 2023 GRCh38 scores
 to `data/alphamissense/AlphaMissense_hg38.tsv.gz` when absent. It pins GCS generation
 `1691073413649109`, checks the archive size (642,961,469 bytes) and published MD5
@@ -123,8 +129,8 @@ The original archive header says CC BY-NC-SA 4.0; the later
 says predictions are CC BY 4.0. Q8 retains both statements in provenance and leaves
 the downloaded archive unchanged. Cite Cheng et al. (2023), Science,
 [doi:10.1126/science.adg7492](https://doi.org/10.1126/science.adg7492).
-The archive stays outside Git; matched scores and evaluation outputs live in
-`notebooks/results/q8/`. Run Q1 before Q8 to reproduce the frozen pilot inputs.
+The archive stays outside Git; current matched scores and evaluation outputs live
+in `notebooks/results/q8/full/`. Run Q1 before Q8 to reproduce the full frozen inputs.
 
 ## Q8 REVEL scores
 
@@ -138,13 +144,13 @@ Existing valid archives are reused offline; corrupt or partial downloads fail.
 Use `grch38_pos` for exact REF/ALT matching; missing GRCh38 positions remain
 unmapped, with no GRCh37 fallback or additional liftover. Scores are aggregated by
 maximum across matching transcript annotations, independently of ClinVar labels.
-Every match and missing score is retained under `notebooks/results/q8/revel/`.
+Every match and missing score is retained under `notebooks/results/q8/full/revel/`.
 
 The [official download page](https://sites.google.com/site/revelgenomics/downloads)
 specifies non-commercial use; Zenodo metadata separately lists ODC-ODbL. Both
 statements are recorded in provenance. Cite Ioannidis et al. (2016), AJHG,
 [doi:10.1016/j.ajhg.2016.08.016](https://doi.org/10.1016/j.ajhg.2016.08.016).
-REVEL's HGMD and constituent-model training overlap with this ClinVar pilot remains
+REVEL's HGMD and constituent-model training overlap with this ClinVar cohort remains
 unresolved. The archive is excluded from Git; there are no variant uploads.
 
 ## Q8 SIFT4G, PolyPhen-2 and EVE scores
@@ -169,6 +175,12 @@ source version, producing code and table checksum. Later runs reuse it offline;
 an identity or checksum mismatch stops execution. Interrupted range downloads can
 resume from the block cache. All files in this directory are excluded from Git.
 
+The full-validation extraction uses `full-validation/validation_annotations.tsv.gz`
+and its own `full-validation/acquisition.json`, bound to every ordered July
+validation key. It shares the verified `blocks/` cache with earlier extractions;
+the pilot table and manifest are preserved. The three current result folders are
+`notebooks/results/q8/full/sift4g/`, `polyphen2/` and `eve/` under the same parent.
+
 SIFT4G is oriented as `1 - score`; PolyPhen-2 uses **HumVar**, and EVE uses its
 continuous score without confidence-category filtering. Take the maximum oriented
 score across exact-allele annotations; leave missing values unscored. The academic
@@ -180,7 +192,7 @@ tool-specific training/exposure limitations are retained with each result.
 The [official repository](https://github.com/Illumina/PrimateAI-3D) requires a signed
 license agreement and supplies the score/model download link by email. No approved
 link or licensed score file was available for this run. Q8 records this blocker in
-`notebooks/results/q8/primateai3d/access_status.json`, with no predictions or metrics.
+`notebooks/results/q8/full/primateai3d/access_status.json`, with no predictions or metrics.
 Provide an approved download URL or a local path to licensed data to complete this
 benchmark. dbNSFP's original **PrimateAI** scores are a different model and are not
 used as a substitute for PrimateAI-3D.

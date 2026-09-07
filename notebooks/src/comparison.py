@@ -50,11 +50,18 @@ METHOD_PAPERS = {
 SOURCE_FILES = {
     'q1': ['protocol.json', 'split_manifest.csv', 'validation_labels.csv',
            'full/protocol.json', 'full/split_manifest.csv', 'full/validation_labels.csv'],
-    'q2': ['protocol.json', 'validation_report.json', 'validation_predictions.csv'],
+    'q2': ['protocol.json', 'validation_report.json', 'validation_predictions.csv',
+           '7b/score_manifest.json'],
     'q8': [str(Path(folder) / name) for folder, _, _ in Q8_EXPORTS.values()
            for name in ['baseline_protocol.json', 'baseline_provenance.json', 'validation_metrics.json', 'pilot_evaluation.csv']]
-          + ['primateai3d/access_status.json'],
-    'q9': ['protocol.json', 'readiness.json', 'metrics.json', 'validation_predictions.npz'],
+          + ['primateai3d/access_status.json', 'full/protocol.json', 'full/leakage_checks.json',
+             'full/primateai3d/access_status.json']
+          + [str(Path('full') / folder / name) for folder, _, _ in Q8_EXPORTS.values()
+             for name in ['baseline_protocol.json', 'baseline_provenance.json',
+                          'validation_metrics.json', 'validation_predictions.csv']],
+    'q9': ['protocol.json', 'readiness.json', 'metrics.json', 'validation_predictions.npz',
+           'baseline_selection.json', 'frozen_features.json'],
+    'q10': ['feature_manifest.json'],
 }
 
 
@@ -192,6 +199,25 @@ def load_q8(root, context, tool='AlphaMissense'):
     require(tool in Q8_EXPORTS, 'Unknown Q8 score export')
     folder, implementation, column = Q8_EXPORTS[tool]
     directory = root / 'notebooks/results/q8' / folder
+    full = root / 'notebooks/results/q8/full'
+    if context.get('scope') == 'full' and full.exists():
+        directory = full / folder
+        provenance = read_json(directory / 'baseline_provenance.json')
+        require(provenance['scope'] == 'full_validation' and provenance['tool'] == tool,
+                'Q8 full export belongs to a different scope or tool')
+        require(provenance['q1_protocol_sha256'] == context['protocol_sha256'] and
+                provenance['q1_vcf_sha256'] == context['vcf_exports'], 'Q8 full cohort is stale')
+        for name, checksum in provenance['sources'].items():
+            verified(root / name, checksum)
+        verified(full / 'protocol.json', provenance['full_q8_protocol_sha256'])
+        verified(full / 'leakage_checks.json', provenance['local_split_checks_sha256'])
+        for name in ['baseline_protocol.json', 'validation_predictions.csv', 'validation_metrics.json']:
+            verified(directory / name, provenance['artifacts'][name])
+        frame = pd.read_csv(directory / 'validation_predictions.csv')
+        require(frame.split.eq('validation').all(), 'Q8 full predictions contain another partition')
+        arrays = align_predictions(frame, context, [column], allow_missing=True)
+        require(not ((arrays[column] < 0) | (arrays[column] > 1)).any(), f'Invalid {tool} score range')
+        return {tool: arrays[column]}
     provenance = read_json(directory / 'baseline_provenance.json')
     require(provenance['q1_protocol_sha256'] == context['protocol_sha256'] and
             provenance['q1_vcf_sha256'] == context['vcf_exports'], 'Q8 cohort is stale')
@@ -227,6 +253,69 @@ def load_q9(root, context):
         frame = pd.DataFrame({'variant_key': saved['keys'], 'label': saved['labels'],
                               **{key: saved[key] for key in Q9_METHODS}})
     return align_predictions(frame, context, Q9_METHODS)
+
+
+def timing_artifact(directory, manifest, name):
+    """Follow an already verified result's checksum to its timing record."""
+    checksum = manifest.get('artifacts', {}).get(name)
+    if checksum is None:
+        return None
+    path = directory / name
+    verified(path, checksum)
+    return read_json(path)
+
+
+def load_runtime(root, identifier, export=None):
+    """Read measured stages only after this method's cohort/results pass checks."""
+    question, method = identifier.split(':', 1)
+    directory = root / 'notebooks/results' / question
+    value = None
+    if export is not None:
+        runtimes = export.get('runtimes', {})
+        require(isinstance(runtimes, dict), 'Runtimes must be keyed by score column')
+        value = runtimes.get(method)
+        if value is None and identifier == 'q2:zero_shot_7b':
+            report = timing_artifact(directory, export, '7b/metrics.json')
+            timing = timing_artifact(directory / '7b', report, 'score_manifest.json') if report else None
+            if timing is not None:
+                value = {'seconds': timing['batch_seconds'],
+                         'scope': 'Validation scoring batches summed across runs; excludes downloads, model loading and evaluation.'}
+        elif value is None and identifier == 'q10:frozen_7b':
+            report = timing_artifact(directory, export, 'metrics.json')
+            timing = timing_artifact(directory, report, 'feature_manifest.json') if report else None
+            if timing is not None:
+                value = {'seconds': timing['seconds'] + report['fit_seconds'],
+                         'scope': 'Train/validation feature extraction plus classifier fitting and selection; excludes setup and bootstrap evaluation.'}
+    elif question == 'q8' and method in Q8_EXPORTS:
+        folder = Q8_EXPORTS[method][0]
+        if (root / 'notebooks/results/q1/full').exists() and (directory / 'full').exists():
+            directory = directory / 'full'
+        provenance = read_json(directory / folder / 'baseline_provenance.json')
+        if provenance.get('elapsed_seconds') is not None:
+            scope = ('CPU score lookup/evaluation workflow, including any downloads in that run; excludes upstream model training.'
+                     if method in {'AlphaMissense', 'REVEL'} else
+                     'CPU score lookup/evaluation; excludes shared dbNSFP acquisition and upstream model training.')
+            value = {'seconds': provenance['elapsed_seconds'], 'scope': provenance.get('runtime_scope', scope)}
+    elif question == 'q9':
+        report = read_json(directory / 'metrics.json')
+        selection = timing_artifact(directory, report, 'baseline_selection.json')
+        if selection is not None:
+            if method == 'sequence':
+                value = {'seconds': selection['fit_seconds']['sequence'],
+                         'scope': 'Classifier fitting and selection only; feature construction was not timed separately.'}
+            elif method == 'frozen':
+                timing = timing_artifact(directory, report, 'frozen_features.json')
+                if timing is not None:
+                    value = {'seconds': timing['seconds'] + selection['fit_seconds']['evo'],
+                             'scope': 'Shared train/validation feature extraction plus classifier fitting and selection; excludes setup and bootstrap evaluation.'}
+    if value is None:
+        return None
+    require(isinstance(value, dict), 'Runtime must contain seconds and scope')
+    seconds, scope = value['seconds'], value['scope']
+    require(isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+            and np.isfinite(seconds) and seconds >= 0, 'Runtime must be finite, nonnegative seconds')
+    require(isinstance(scope, str) and bool(scope.strip()), 'Runtime must identify the measured stages')
+    return {'runtime_seconds': float(seconds), 'runtime_scope': scope}
 
 
 def summarize(labels, predictions, groups, repetitions=REPETITIONS):
@@ -288,12 +377,14 @@ def collect(root=ROOT, repetitions=REPETITIONS):
     result['cohort']['validation_variants'] = len(validation)
     result['cohort']['clinvar_date'] = context['config'].get('clinvar_date', 'unspecified snapshot')
     result['cohort']['scope'] = context['scope']
-    predictions = {}
+    predictions, exports = {}, {}
     loaders = [('q2', load_q2, 'validation_report.json', None)] + [
         ('q8', load_q8, str(Path(folder) / 'baseline_provenance.json'), tool)
         for tool, (folder, _, _) in Q8_EXPORTS.items()] + [('q9', load_q9, 'metrics.json', None)]
     for question, loader, required, tool in loaders:
         directory = root / 'notebooks/results' / question
+        if question == 'q8' and context.get('scope') == 'full' and (directory / 'full').exists():
+            directory = directory / 'full'
         candidates = [row for row in methods.values() if row['question'].lower() == question and
                       (question != 'q8' or row['method'] == tool)]
         if not (directory / required).exists():
@@ -319,6 +410,8 @@ def collect(root=ROOT, repetitions=REPETITIONS):
             for row in candidates:
                 row.update(status='Invalid / stale', note=str(error))
     access_path = root / 'notebooks/results/q8/primateai3d/access_status.json'
+    if context.get('scope') == 'full' and (root / 'notebooks/results/q8/full').exists():
+        access_path = root / 'notebooks/results/q8/full/primateai3d/access_status.json'
     if access_path.exists():
         try:
             access = read_json(access_path)
@@ -350,10 +443,19 @@ def collect(root=ROOT, repetitions=REPETITIONS):
                 identifier = f'{question}:{column}'
                 methods[identifier].update(status='Available', note=spec.get('limitations', ''))
                 predictions[identifier] = values
+                exports[identifier] = spec
         except (OSError, ValueError, KeyError) as error:
             result['errors'][question.upper()] = str(error)
             for row in candidates.values():
                 row['note'] = str(error)
+    for identifier in predictions:
+        try:
+            timing = load_runtime(root, identifier, exports.get(identifier))
+            if timing is not None:
+                methods[identifier].update(timing)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            # An absent or corrupt optional timing must not discard valid scores.
+            methods[identifier]['runtime_error'] = str(error)
     labels, groups = validation.label.to_numpy(), validation.component.to_numpy()
     summary = summarize(labels, predictions, groups, repetitions)
     for identifier, row in methods.items():
@@ -381,6 +483,19 @@ def format_metric(measured, key):
     return f'{metric["value"]:.3f}{suffix}'
 
 
+def format_runtime(row):
+    seconds = row.get('runtime_seconds')
+    if seconds is None:
+        return '—'
+    if seconds < 1:
+        return f'{seconds:.3g} s'
+    if seconds < 60:
+        return f'{seconds:.1f} s'
+    if seconds < 3600:
+        return f'{seconds / 60:.1f} min'
+    return f'{seconds / 3600:.1f} h'
+
+
 def markdown_table(rows):
     """Render GitHub tables without an additional formatting dependency."""
     columns = list(rows[0])
@@ -404,13 +519,16 @@ def render(result, root=ROOT):
                       'Paper': METHOD_PAPERS.get(row['id'], '—'),
                       'Scored / validation': f'{row["covered"]:,} / {row["total"]:,}' if 'covered' in row else '—',
                       'AUROC [95% CI]': format_metric(row, 'auroc'),
-                      'Average precision [95% CI]': format_metric(row, 'average_precision')})
+                      'Average precision [95% CI]': format_metric(row, 'average_precision'),
+                      'Runtime': format_runtime(row)})
     cohort = result['cohort']
     intro = (f'**{cohort["validation_variants"]:,} missense validation variants · '
              f'ClinVar {cohort.get("clinvar_date", "unspecified snapshot")} · {cohort.get("scope", "pilot")} cohort**' if cohort
              else '**Frozen validation inputs unavailable**')
     sections = ['## Method comparison', 'Compare methods on Q1’s current frozen missense validation set. Only results matching its snapshot and complete cohort are included.', intro,
-                markdown_table(table)]
+                markdown_table(table),
+                'Runtime covers the recorded stages listed in the details below; hardware and caching differ between workflows. '
+                '“—” means no verified timing is available for the current cohort.']
     available = [row for row in rows if row.get('metrics')]
     if result['common']:
         table = [{'Method': f'{row["method"]} ({row["question"]})',
@@ -419,7 +537,14 @@ def render(result, root=ROOT):
                   'Average precision [95% CI]': format_metric(result['common'][row['id']], 'average_precision')}
                  for row in available if row['id'] in result['common']]
         sections.extend(['**Direct comparison on the same variants**', markdown_table(table)])
-    notes = [{'Method': html.escape(f'{r["method"]} ({r["question"]})'), 'Details': html.escape(r['note'])} for r in rows]
+    notes = []
+    for row in rows:
+        detail = row['note']
+        if row.get('runtime_scope'):
+            detail += ' Runtime: ' + row['runtime_scope']
+        elif row.get('runtime_error'):
+            detail += ' Runtime unavailable: ' + row['runtime_error']
+        notes.append({'Method': html.escape(f'{row["method"]} ({row["question"]})'), 'Details': html.escape(detail)})
     sections.append('<details>\n<summary>Provenance, missing results and limitations</summary>\n\n' +
                     markdown_table(notes) + '\n\n```json\n' + json.dumps({
                         'cohort': cohort, 'source_errors': result['errors'], 'bootstrap': result['bootstrap'],
@@ -475,7 +600,8 @@ def refresh(root=ROOT, repetitions=REPETITIONS):
         require(before == source_signature(root), 'Sources changed during refresh; retry after writes finish')
         result['sources'] = source_signature(root, content=True)
         atomic_write(output / 'summary.json', json.dumps(result, indent=2, allow_nan=False) + '\n')
-        csv = pd.DataFrame([{key: row.get(key) for key in ['id', 'question', 'method', 'status', 'covered', 'total']} |
+        csv = pd.DataFrame([{key: row.get(key) for key in ['id', 'question', 'method', 'status', 'covered', 'total',
+                                                         'runtime_seconds', 'runtime_scope']} |
                             {metric: row.get('metrics', {}).get(metric, {}).get('value')
                              for metric in ['auroc', 'average_precision']} for row in result['methods']])
         atomic_write(output / 'methods.csv', csv.to_csv(index=False))

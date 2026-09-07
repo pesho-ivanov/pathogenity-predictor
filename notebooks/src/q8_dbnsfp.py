@@ -166,22 +166,25 @@ class RangeReader(io.RawIOBase):
         return b''.join(pieces)
 
 
-def fetch_annotations(variant_keys, directory=DATA):
+def fetch_annotations(variant_keys, directory=DATA, *, cache_directory=None,
+                      table_name='pilot_annotations.tsv.gz'):
+    """Extract one frozen key set, optionally sharing verified raw blocks across cohorts."""
     keys, directory = list(variant_keys), Path(directory)
-    c.require(len(keys) == len(set(keys)), 'Duplicate pilot keys')
+    c.require(len(keys) == len(set(keys)), 'Duplicate variant keys')
     identity = {'source': SOURCE, 'variant_keys_sha256': hashlib.sha256(json.dumps(keys).encode()).hexdigest(),
                 'implementation_sha256': c.digest(__file__), 'retained_columns': FIELDS}
     directory.mkdir(parents=True, exist_ok=True)
-    table_path, manifest_path = directory / 'pilot_annotations.tsv.gz', directory / 'acquisition.json'
+    table_path, manifest_path = directory / table_name, directory / 'acquisition.json'
+    blocks = Path(cache_directory) if cache_directory is not None else directory / 'blocks'
     if manifest_path.exists():
         manifest = c.read_json(manifest_path)
         c.require(manifest['identity'] == identity, 'dbNSFP extraction identity changed; preserve the old extraction first')
         c.verified(table_path, manifest['table_sha256'])
-        print('Reusing verified dbNSFP pilot score extraction offline.', flush=True)
+        print('Reusing verified dbNSFP score extraction offline.', flush=True)
         return pd.read_csv(table_path, sep='\t', dtype=str, keep_default_na=False), manifest
     metadata_files(directory)
     chunks = tabix_chunks(directory / SOURCE['index']['name'], keys)
-    store = BlockStore(directory / 'blocks')
+    store = BlockStore(blocks)
     with bgzf.BgzfReader(fileobj=RangeReader(store), mode='rb') as stream:
         header = stream.readline().decode().rstrip('\r\n').split('\t')
     c.require(header[:4] == FIELDS[:4], 'Unexpected dbNSFP genomic columns')
@@ -202,7 +205,7 @@ def fetch_annotations(variant_keys, directory=DATA):
                     rows.append([key, *[fields[i] for i in indices]])
         return rows
 
-    print(f'Fetching {len(chunks):,} indexed regions for {len(keys):,} exact pilot alleles.', flush=True)
+    print(f'Fetching {len(chunks):,} indexed regions for {len(keys):,} exact alleles.', flush=True)
     rows = []
     with ThreadPoolExecutor(max_workers=4) as pool:
         for number, matches in enumerate(pool.map(read_chunk, chunks), 1):
@@ -212,7 +215,7 @@ def fetch_annotations(variant_keys, directory=DATA):
     frame = pd.DataFrame(rows, columns=['variant_key', *FIELDS])
     frame.to_csv(table_path, sep='\t', index=False, compression={'method': 'gzip', 'mtime': 0})
     manifest = {'identity': identity, 'table_sha256': c.digest(table_path), 'annotations': len(frame),
-                'regions': len(chunks), 'cached_bytes': sum(p.stat().st_size for p in (directory / 'blocks').glob('*.bin')),
+                'regions': len(chunks), 'cached_bytes': sum(p.stat().st_size for p in blocks.glob('*.bin')),
                 'clinical_columns_retained': False}
     c.atomic_write(manifest_path, json.dumps(manifest, indent=2) + '\n')
     return frame, manifest
