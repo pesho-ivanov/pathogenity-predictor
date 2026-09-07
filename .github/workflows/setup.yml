@@ -1,0 +1,19 @@
+name: Fresh CPU setup
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install in a fresh environment and run CPU tests
+        run: python scripts/setup.py --profile cpu --test
+      - name: Check the installed environment without reinstalling
+        run: python scripts/setup.py --profile cpu --check

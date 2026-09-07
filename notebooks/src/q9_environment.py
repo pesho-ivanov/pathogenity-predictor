@@ -58,6 +58,11 @@ def run_command(name, args, extra_env=None):
 def _run_command(name, args, extra_env, lock_fd=None):
     env = dict(os.environ, OMP_NUM_THREADS='4', MKL_NUM_THREADS='4',
                TOKENIZERS_PARALLELISM='false', MAX_JOBS='4')
+    if name.startswith('install-'):
+        # NGC constrains its global Python. This isolated venv uses the shared
+        # Q9 pins and explicit protected-package constraints instead.
+        env.pop('PIP_CONSTRAINT', None)
+        env.pop('PIP_BUILD_CONSTRAINT', None)
     env.update(extra_env or {})
     q1.write_json(OUTPUT / f'{name}-command.json', {'args': list(map(str, args)),
                                                    'extra_env': extra_env or {}})
@@ -124,12 +129,26 @@ def probe():
     return result
 
 
+def cuda_arch_list():
+    """Compile for this machine's visible GPUs, or an explicit deployment target."""
+    override = os.environ.get('TORCH_CUDA_ARCH_LIST', '').strip()
+    if override:
+        return override
+    import torch
+    if not torch.cuda.is_available():
+        raise RuntimeError('BioNeMo setup needs a visible CUDA GPU or TORCH_CUDA_ARCH_LIST.')
+    capabilities = {torch.cuda.get_device_capability(i) for i in range(torch.cuda.device_count())}
+    return ';'.join(f'{major}.{minor}' for major, minor in sorted(capabilities))
+
+
 def setup():
     """Install only into Q9's venv; required Evo2 imports are checked afterward."""
     checkout_sources()
     requirements = runtime_requirements()
+    architecture = cuda_arch_list()
     identity = {'sources': {str(p.relative_to(ROOT)): sha for p, _, sha in REPOSITORIES},
-                'requirements': requirements, 'protected_packages': PROTECTED}
+                'requirements': requirements, 'protected_packages': PROTECTED,
+                'cuda_arch_list': architecture}
     OUTPUT.mkdir(parents=True, exist_ok=True)
     marker = OUTPUT / 'setup.json'
     if marker.exists() and q1.read_json(marker)['identity'] == identity:
@@ -157,8 +176,9 @@ def setup():
         args += ['-r', upstream / filename]
     run_command('install-runtime', args + runtime)
     causal = [r for r in requirements if r.startswith('causal-conv1d ')]
-    run_command('install-causal', pip + ['--no-deps', '--no-build-isolation'] + causal,
-                {'CAUSAL_CONV1D_FORCE_BUILD': 'TRUE', 'TORCH_CUDA_ARCH_LIST': '8.9'})
+    run_command('install-causal', pip + ['--no-deps', '--no-build-isolation',
+                                       '--force-reinstall', '--no-cache-dir'] + causal,
+                {'CAUSAL_CONV1D_FORCE_BUILD': 'TRUE', 'TORCH_CUDA_ARCH_LIST': architecture})
     result = probe()
     q1.write_json(marker, {'identity': identity, 'result': result})
     run_command('installed-packages', [PYTHON, '-m', 'pip', 'list', '--format=json'])

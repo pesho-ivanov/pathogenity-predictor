@@ -216,6 +216,21 @@ Keep Q1's missense partitions, 1,024-base contexts and validation selection fixe
 Report paired component-bootstrap comparisons and compute usage. The original
 1B checkpoint is BF16-sensitive, so differences do not isolate model size alone.
 
+## Setup
+
+See [SETUP.md](SETUP.md) for a fresh CPU installation, the NVIDIA GPU container,
+notebook execution and transferring existing data and experiments. Quick CPU setup:
+
+```bash
+git clone --recurse-submodules https://github.com/pesho-ivanov/pathogenity-predictor.git
+cd pathogenity-predictor
+python3.12 scripts/setup.py --profile cpu --test
+.venv/bin/jupyter lab
+```
+
+For a GPU machine, use `nvcr.io/nvidia/pytorch:25.04-py3` and run
+`python scripts/setup.py --profile gpu --test` inside the container.
+
 ## Machine configuration
 
 Observed on 2026-09-07 in the current container/VM. These are the resources
