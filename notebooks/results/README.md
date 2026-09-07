@@ -3,12 +3,53 @@
 Generated reports, manifests, caches and models live here. External inputs and
 Q1's two shared VCF partitions belong in the project-root [data/](../../data/) directory.
 
+## Comparison exports
+
+The root [comparison.ipynb](../../comparison.ipynb) aggregates Q2, Q8 and Q9 and
+lists unevaluated Q8 competitors. It recomputes AUROC and average precision from
+verified validation predictions, with 1,000 component-bootstrap replicates and
+seed 42. Each method's own coverage is shown; direct comparisons use the intersection
+of scored variants. Invalid/stale inputs, missing results and blocked experiments
+have explicit statuses. Archived broad-SNV results never enter this comparison.
+
+`comparison/summary.json`, `methods.csv` and `metrics.png` are generated alongside
+the root notebook. The summary records source hashes, Q1 identity, coverage, metrics,
+intervals and source errors. `watch_status.json` and `watch.log` report the local
+refresh service. Notebook saves and relevant result-file changes trigger an atomic
+refresh after a short quiet period. Each refresh executes the comparison's display
+cell in a fresh kernel and saves its execution count and outputs. `display.json`
+supplies the computed display data to that cell. Source notebooks are never executed;
+editing displayed numbers or prose does not change the underlying predictions.
+Run the root notebook once, or use `python -m notebooks.src.comparison_watch --start`,
+to enable it for the workspace session. Use `--stop` to stop it. Reload the comparison
+in Jupyter after external updates. A refresh failure is recorded in the watcher log.
+
+Future result notebooks can write `results/qN/comparison_predictions.csv` with
+`variant_key`, `label` (0 benign / 1 pathogenic), and a column per method. Include
+every frozen validation variant exactly once, using empty scores for missing
+coverage; an optional `component` column must match Q1. Export
+`results/qN/comparison_results.json` **last**, with this structure:
+
+```json
+{
+  "q1_protocol_sha256": "SHA-256 of results/q1/protocol.json",
+  "predictions_sha256": "SHA-256 of comparison_predictions.csv",
+  "methods": {"score_column": "Method display name"},
+  "limitations": "Selection, external training and calibration caveats"
+}
+```
+
+The watcher discovers these exports automatically. Match the exact Q1 validation
+membership and ClinVar labels. Scores must increase with pathogenicity; zero-shot
+log likelihood scores need not be probabilities. Each `qN:score_column` ID must be
+unique, including the built-in Q2/Q8/Q9 methods. Missing data is never treated as benign.
+
 ## Scope of existing results
 
 Q1's pilot VCFs and manifests now contain **missense variants only**. Q0 now audits the downloaded **6 July 2026** snapshot. Q1/Q2 preserve the
 **5 September 2026** snapshot and assignments used to build the existing pilot.
-Q2's missense inputs have been prepared; feature extraction, fitting and validation
-must be rerun to obtain missense results. The earlier broad-SNV experiment is
+Q2's missense feature extraction, fitting and validation are complete, and its
+notebook is saved with all cells executed and outputs retained. The earlier broad-SNV experiment is
 preserved in `archive/broad_snv_before_missense/`.
 Q8 now surveys six missense-specific tools and evaluates AlphaMissense on the
 fixed pilot. Its earlier broader survey, notebook and implementation are preserved
@@ -72,7 +113,7 @@ Q2 consumes these fixed missense partitions and verifies their hashes.
 
 ## Q8 artifacts: missense survey and AlphaMissense reference
 
-[Q8](../Q8-tools-survey.ipynb) renders the reviewed catalog in
+[Q8](../Q8-existing-tools.ipynb) renders the reviewed catalog in
 `notebooks/src/q8_catalog.json` offline, then downloads verified AlphaMissense scores
 when absent and benchmarks the fixed pilot. It writes to `notebooks/results/q8/`:
 

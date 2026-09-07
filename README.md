@@ -3,6 +3,13 @@
 A small research project for predicting the pathogenicity of **missense variants**
 using ClinVar data.
 
+Open [comparison.ipynb](comparison.ipynb) for all competing methods' current
+validation metrics, coverage and experiment status. Run its single cell once to
+enable automatic refresh when a source notebook is saved or result exports change.
+The watcher updates the file on disk; reload an already open comparison to see it.
+It reads verified predictions and never reruns a model. Q2, Q8 and Q9 are supported;
+the [export contract](notebooks/results/README.md#comparison-exports) supports new notebooks.
+
 ## Research questions
 
 These questions support the [project goals](GOALS.md): ClinVar missense pathogenicity
@@ -71,7 +78,7 @@ Freeze training labels at an earlier release and evaluate variants that later
 receive clear classifications. This requires historical snapshots and careful
 provenance checks, but would test usefulness beyond reproducing existing labels.
 
-### [Q8. What in silico tools currently exist for predicting missense variant pathogenicity, and which are suitable baselines for this project?](notebooks/Q8-tools-survey.ipynb)
+### [Q8. What in silico tools currently exist for predicting missense variant pathogenicity, and which are suitable baselines for this project?](notebooks/Q8-existing-tools.ipynb)
 
 Compare six missense-specific predictors and set up AlphaMissense as the reference
 baseline. Automatically download its pinned GRCh38 scores, match Q1's fixed pilot
@@ -91,6 +98,11 @@ as the training scaffold, adding selective weight updates and supervised missens
 
 Research notebooks and their explanations live in `notebooks/`; generated files
 live in `notebooks/results/`.
+The aggregate [comparison notebook](comparison.ipynb) lives in the repository root.
+To enable its watcher without opening Jupyter, run
+`.venv/bin/python -m notebooks.src.comparison_watch --start` from this directory.
+Use `--stop` to stop it; omit both flags for a one-time refresh. Start it again after
+a workspace restart. The watcher requires only the existing CPU notebook dependencies.
 Implementation lives in [q0.py](notebooks/src/q0.py), [q1.py](notebooks/src/q1.py)
 and [q2.py](notebooks/src/q2.py). The tool survey uses [q8.py](notebooks/src/q8.py)
 and a [bundled source catalog](notebooks/src/q8_catalog.json); its

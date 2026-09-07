@@ -51,7 +51,8 @@ final performance claims require an untouched holdout.
 
 The earlier broad-SNV VCFs, manifests, source code, notebooks and Q2 results are
 preserved in `notebooks/results/archive/broad_snv_before_missense/`. Q2's old
-features and model results are archived; missense model results require rerunning Q2.
+features and model results are archived; completed missense model results are in
+`notebooks/results/q2/`, with an executed Q2 notebook to reproduce them.
 
 These two generated VCFs are the exception to keeping only external inputs here.
 All VCFs remain excluded from Git.
@@ -79,7 +80,7 @@ generated notebook results: `arcinstitute/evo2_1b_base`, revision
 
 ## Q8 AlphaMissense scores
 
-[Q8](../notebooks/Q8-tools-survey.ipynb) downloads the published 2023 GRCh38 scores
+[Q8](../notebooks/Q8-existing-tools.ipynb) downloads the published 2023 GRCh38 scores
 to `data/alphamissense/AlphaMissense_hg38.tsv.gz` when absent. It pins GCS generation
 `1691073413649109`, checks the archive size (642,961,469 bytes) and published MD5
 `9fd167735f16a1b87da6eb3e4c25fcb5`, and atomically promotes verified downloads.
