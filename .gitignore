@@ -1,0 +1,11 @@
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+*.log
+
+# Keep large local datasets out of Git.
+/data/*
+!/data/README.md
