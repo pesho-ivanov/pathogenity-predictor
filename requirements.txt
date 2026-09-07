@@ -18,3 +18,19 @@ vtx==1.1.0
 # Preserve its compiled stack using a venv with --system-site-packages:
 # torch 2.7.0a0+79aa17489c.nv25.4, transformer_engine 2.2.0+c55e425,
 # flash-attn 2.7.3, CUDA 12.9. Do not replace these with generic PyPI wheels.
+
+# Q9 runs in .venv/q9, preserving Q2's environment. q9_environment.py reads
+# these Q9-RUNTIME entries and the requirement files in the pinned NeMo source.
+# They are comments so installing Q0/Q2 does not change their working GPU stack.
+# Q9-RUNTIME: lightning==2.4.0
+# Q9-RUNTIME: pytorch-lightning==2.4.0
+# Q9-RUNTIME: transformers==4.48.3
+# Q9-RUNTIME: peft==0.14.0
+# Q9-RUNTIME: torchmetrics==1.6.1
+# Q9-RUNTIME: datasets==2.21.0
+# Q9-RUNTIME: huggingface-hub==0.36.2
+# Q9-RUNTIME: pangu==4.0.6.1
+# Q9-RUNTIME: boto3==1.35.99
+# Q9-RUNTIME: nvidia-resiliency-ext==0.2.0
+# Q9-RUNTIME: nemo_run @ git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2
+# Q9-RUNTIME: causal-conv1d @ git+https://github.com/Dao-AILab/causal-conv1d.git@de688f7650aafee4804ffa0875c9c92054d737c4

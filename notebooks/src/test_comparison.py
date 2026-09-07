@@ -1,4 +1,4 @@
-"""Cohort integrity, shared coverage and notebook propagation checks."""
+"""Cohort integrity, shared coverage and README propagation checks."""
 
 import json
 from pathlib import Path
@@ -184,31 +184,81 @@ class ComparisonTests(unittest.TestCase):
     def test_notebook_save_and_result_change_propagate_without_execution(self):
         # The watcher runs the real refresh loop, with bootstrap shortened for this fixture.
         self.export()
+        readme = self.root / 'README.md'
+        readme.write_text('# Project\n\nIntroduction.\n\n## Research questions\n\nKeep these notes.\n')
         original = c.refresh
         with patch.object(c, 'refresh', side_effect=lambda root: original(root, repetitions=10)):
             worker = threading.Thread(target=watch.watch, args=(self.root, .03), daemon=True)
             worker.start()
             try:
-                self.wait_for(lambda: (self.root / 'comparison.ipynb').exists())
-                initial = (self.root / 'comparison.ipynb').read_text()
+                self.wait_for(lambda: c.SECTION_END in readme.read_text())
+                initial = readme.read_text()
+                self.assertIn('| q10 predictor | Q10 | 4 / 4 | 0.750', initial)
+                # Preserve prose edited while the watcher is running.
+                edited = initial.replace('Keep these notes.', 'Keep these revised notes.')
+                readme.write_text(edited)
                 nb = nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell('raise RuntimeError("must never execute")')])
                 nbformat.write(nb, self.source_notebook)
-                self.wait_for(lambda: (self.root / 'comparison.ipynb').read_text() != initial)
+                self.wait_for(lambda: readme.read_text() != edited)
                 self.export(scores=[.1, .9, .2, .8])
                 def latest_score():
                     result = c.read_json(self.results / 'comparison/summary.json')
                     row = next(r for r in result['methods'] if r['id'] == 'q10:score')
-                    return row['metrics']['auroc']['value'] == 1
+                    return (row['metrics']['auroc']['value'] == 1 and
+                            '| q10 predictor | Q10 | 4 / 4 | 1.000' in readme.read_text())
                 self.wait_for(latest_score)
-                notebook = nbformat.read(self.root / 'comparison.ipynb', as_version=4)
-                nbformat.validate(notebook)
-                self.assertTrue(all(cell.execution_count is not None for cell in notebook.cells if cell.cell_type == 'code'))
-                self.assertFalse(any(output.output_type == 'error' for cell in notebook.cells for output in cell.get('outputs', [])))
-                self.assertFalse(any('comparison.ipynb' == key for key in c.source_signature(self.root)))
+                self.assertTrue(readme.read_text().startswith('# Project\n\nIntroduction.\n\n'))
+                self.assertTrue(readme.read_text().endswith('## Research questions\n\nKeep these revised notes.\n'))
+                self.assertEqual(readme.read_text().count(c.SECTION_START), 1)
+                self.assertNotIn('| Status |', readme.read_text())
+                self.assertTrue((self.root / 'assets/comparison.png').exists())
+                self.assertFalse((self.root / 'comparison.ipynb').exists())
+                signature = c.source_signature(self.root)
+                self.assertNotIn('README.md', signature)
+                self.assertNotIn('assets/comparison.png', signature)
+                saved = nbformat.read(self.source_notebook, as_version=4)
+                self.assertEqual(saved.cells[0].source, nb.cells[0].source)
+                self.assertIsNone(saved.cells[0].execution_count)
+                self.assertEqual(saved.cells[0].outputs, [])
             finally:
                 watch.stop(self.root)
                 worker.join(timeout=5)
         self.assertFalse(worker.is_alive())
+
+    def test_readme_includes_metrics_common_subset_and_provenance(self):
+        self.q2()
+        self.q8()
+        result, section = c.refresh(self.root, repetitions=10)
+        readme = (self.root / 'README.md').read_text()
+        self.assertIn(section, readme)
+        self.assertIn('**Direct comparison on the same variants**', readme)
+        self.assertIn('[Q8](notebooks/Q8-existing-tools.ipynb)', readme)
+        for row in result['methods']:
+            self.assertIn(row['method'], readme)
+            self.assertIn(c.html.escape(row['note']).replace('|', r'\|').replace('\n', '<br>'), readme)
+            for key in ['auroc', 'average_precision']:
+                self.assertIn(c.format_metric(row, key), readme)
+        for row in result['common'].values():
+            self.assertIn(c.format_metric(row, 'auroc'), readme)
+            self.assertIn(c.format_metric(row, 'average_precision'), readme)
+        metadata = json.loads(readme.split('```json\n', 1)[1].split('\n```', 1)[0])
+        self.assertEqual(metadata['cohort'], result['cohort'])
+        self.assertEqual(metadata['bootstrap'], result['bootstrap'])
+        self.assertEqual(metadata['source_errors'], result['errors'])
+        self.assertIn('**Conclusion.**', readme)
+        image = self.root / 'assets/comparison.png'
+        self.assertTrue(image.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'))
+        self.assertEqual(image.read_bytes(), (self.results / 'comparison/metrics.png').read_bytes())
+
+    def test_readme_rejects_malformed_markers_without_overwriting(self):
+        readme = self.root / 'README.md'
+        for text in [c.SECTION_START, c.SECTION_END, c.SECTION_END + c.SECTION_START,
+                     c.SECTION_START * 2 + c.SECTION_END]:
+            with self.subTest(text=text):
+                readme.write_text(text)
+                with self.assertRaisesRegex(ValueError, 'markers'):
+                    c.update_readme(self.root, 'new results')
+                self.assertEqual(readme.read_text(), text)
 
     def wait_for(self, predicate):
         deadline = time.monotonic() + 10

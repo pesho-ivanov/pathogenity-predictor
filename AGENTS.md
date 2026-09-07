@@ -8,5 +8,5 @@
   errors; resolve failures before calling a notebook finished, and report any
   genuine blocker explicitly.
 - Automatic notebook generation and refresh must also execute the notebook before
-  saving it. Keep the root comparison synchronized with completed source results.
+  saving it. Keep the README comparison synchronized with completed source results.
 - Follow the scientific and reproducibility requirements in GOALS.md.

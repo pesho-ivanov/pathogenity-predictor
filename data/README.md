@@ -96,3 +96,21 @@ the downloaded archive unchanged. Cite Cheng et al. (2023), Science,
 [doi:10.1126/science.adg7492](https://doi.org/10.1126/science.adg7492).
 The archive stays outside Git; matched scores and evaluation outputs live in
 `notebooks/results/q8/`. Run Q1 before Q8 to reproduce the frozen pilot inputs.
+
+## Q9 BioNeMo inputs
+
+[Q9](../notebooks/Q9-evo2-finetuning.ipynb) automatically fetches pinned external
+BioNeMo, NeMo and Megatron sources into `data/bionemo-recipes/`. Its
+`data/evo2-savanna-1b/savanna_evo2_1b_base.pt` checkpoint comes from
+`arcinstitute/savanna_evo2_1b_base`, revision
+`7217626d9f843e1830a5de1f5209c046570b6856`, SHA-256
+`7bb731473c99db72aba34e7b0df443f2f422e12b0669bea6d78415dc87057a08`.
+Converted weights, logs, caches and experiment outputs belong under
+`notebooks/results/q9/`. Q9 consumes the same fixed missense VCFs as Q2.
+
+The gradient investigation also downloads NVIDIA's public
+`evo2-1b-8k-bf16-nemo2`, version `1.0`, into `data/evo2-bf16-1b/`.
+Its `nemo2_evo2_1b_8k_bf16.tar.gz` archive has SHA-256
+`ea4a3f5c9c26d5edc10bdc85165c090ad0ff23ac2670d4f61244f5f0d9d5e817`.
+The archive and extracted external weights are retained; diagnostic outputs and
+download provenance are under `notebooks/results/q9/investigation/`.

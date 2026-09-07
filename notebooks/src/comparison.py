@@ -1,20 +1,17 @@
-"""Collect verified validation predictions and render the root comparison notebook.
+"""Collect verified validation predictions and update the main README comparison.
 
 This module never executes a source notebook, imports a model, or reads archives.
 Notebook saves trigger refreshes; scientific values come from exported predictions.
 """
 
-import base64
 from datetime import datetime, timezone
 import hashlib
 import html
 import io
 import json
-import os
 from pathlib import Path
 import tempfile
 
-import nbformat
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
@@ -23,6 +20,8 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 ROOT = Path(__file__).resolve().parents[2]
 REPETITIONS = 1000
 SEED = 42
+SECTION_START = '<!-- comparison:start -->'
+SECTION_END = '<!-- comparison:end -->'
 Q2_METHODS = {'evo': 'Evo2 + logistic regression', 'zero_shot': 'Evo2 zero-shot',
               'sequence': 'Sequence + logistic regression'}
 Q9_METHODS = {'fine_tuned': 'Evo2 fine-tuned (BioNeMo)', 'frozen': 'Evo2 frozen head (BioNeMo)',
@@ -319,15 +318,24 @@ def format_metric(measured, key):
     return f'{metric["value"]:.3f}{suffix}'
 
 
+def markdown_table(rows):
+    """Render GitHub tables without an additional formatting dependency."""
+    columns = list(rows[0])
+    def line(values):
+        return '| ' + ' | '.join(str(value).replace('|', r'\|').replace('\n', '<br>') for value in values) + ' |'
+    return '\n'.join([line(columns), line(['---'] * len(columns))] +
+                     [line(row[column] for column in columns) for row in rows])
+
+
 def render(result, root=ROOT):
-    """Return notebook display bundles and export a standalone comparison plot."""
+    """Return the complete Markdown comparison and export its GitHub-visible plot."""
     root = Path(root)
     rows = result['methods']
     notebooks = {p.stem.split('-')[0].upper(): p for p in (root / 'notebooks').glob('Q*.ipynb')}
     table = []
     for row in rows:
         path = notebooks.get(row['question'])
-        link = (f'<a href="{html.escape(str(path.relative_to(root)))}">{row["question"]}</a>' if path else row['question'])
+        link = f'[{row["question"]}]({path.relative_to(root).as_posix()})' if path else row['question']
         table.append({'Method': html.escape(row['method']), 'Notebook': link,
                       'Scored / validation': f'{row["covered"]:,} / {row["total"]:,}' if 'covered' in row else '—',
                       'AUROC [95% CI]': format_metric(row, 'auroc'),
@@ -335,7 +343,8 @@ def render(result, root=ROOT):
     cohort = result['cohort']
     intro = (f'**{cohort["validation_variants"]:,} missense validation variants · ClinVar labels**' if cohort
              else '**Frozen validation inputs unavailable**')
-    bundles = [{'text/markdown': intro}, {'text/html': pd.DataFrame(table).to_html(index=False, escape=False, border=0)}]
+    sections = ['## Method comparison', 'Compare methods on Q1’s frozen missense validation set.', intro,
+                markdown_table(table)]
     available = [row for row in rows if row.get('metrics')]
     if available:
         common = result['common']
@@ -360,20 +369,20 @@ def render(result, root=ROOT):
         buffer = io.BytesIO()
         fig.savefig(buffer, format='png', dpi=150)
         atomic_write(root / 'notebooks/results/comparison/metrics.png', buffer.getvalue())
-        bundles.append({'image/png': base64.b64encode(buffer.getvalue()).decode()})
+        atomic_write(root / 'assets/comparison.png', buffer.getvalue())
+        sections.append('![Validation AUROC and average precision with 95% confidence intervals](assets/comparison.png)')
     if result['common']:
         table = [{'Method': f'{row["method"]} ({row["question"]})',
                   'Shared variants': result['common'][row['id']]['total'],
                   'AUROC [95% CI]': format_metric(result['common'][row['id']], 'auroc'),
                   'Average precision [95% CI]': format_metric(result['common'][row['id']], 'average_precision')}
                  for row in available if row['id'] in result['common']]
-        bundles.extend([{'text/markdown': '**Direct comparison on the same variants**'},
-                        {'text/html': pd.DataFrame(table).to_html(index=False, border=0)}])
-    notes = pd.DataFrame([{'Method': f'{r["method"]} ({r["question"]})', 'Details': r['note']} for r in rows])
-    bundles.append({'text/html': '<details><summary>Provenance, missing results and limitations</summary>' +
-                    notes.to_html(index=False, border=0) + '<pre>' + html.escape(json.dumps({
+        sections.extend(['**Direct comparison on the same variants**', markdown_table(table)])
+    notes = [{'Method': html.escape(f'{r["method"]} ({r["question"]})'), 'Details': html.escape(r['note'])} for r in rows]
+    sections.append('<details>\n<summary>Provenance, missing results and limitations</summary>\n\n' +
+                    markdown_table(notes) + '\n\n```json\n' + json.dumps({
                         'cohort': cohort, 'source_errors': result['errors'], 'bootstrap': result['bootstrap'],
-                        'generated_utc': result['generated_utc']}, indent=2)) + '</pre></details>'})
+                        'generated_utc': result['generated_utc']}, indent=2) + '\n```\n\n</details>')
     if len(available) == 1:
         conclusion = f'Only **{available[0]["method"]}** currently has verified metrics. A ranking awaits the other methods’ results.'
     elif not available:
@@ -382,31 +391,37 @@ def render(result, root=ROOT):
         conclusion = 'Several methods have results, but there is no shared scored subset with both classes for a direct comparison.'
     else:
         conclusion = 'Use the common-subset comparison to assess methods; coverage remains a separate limitation.'
-    bundles.append({'text/markdown': '**Conclusion.** ' + conclusion + '\n\n'
+    sections.append('**Conclusion.** ' + conclusion + '\n\n'
                     'These are development results: validation participates in model selection. '
                     'AlphaMissense has unresolved ClinVar calibration overlap. The 95% intervals resample whole '
-                    'Q1 components and do not correct selection bias or establish clinical validity.'})
-    return bundles
+                    'Q1 components and do not correct selection bias or establish clinical validity.')
+    return '\n\n'.join(sections)
 
 
-def notebook_with_outputs(bundles):
-    notebook = nbformat.v4.new_notebook(cells=[
-        nbformat.v4.new_markdown_cell('# Method comparison\n\n'
-            'Compare methods on Q1’s frozen missense validation set. '
-            'Run this notebook once to enable automatic refresh, then reload it after source results change.'),
-        nbformat.v4.new_code_cell('from notebooks.src import comparison\ncomparison.show()',
-                                 outputs=[nbformat.v4.new_output('display_data', data=bundle) for bundle in bundles]),
-    ], metadata={'kernelspec': {'display_name': 'Python 3 (ipykernel)', 'language': 'python', 'name': 'python3'},
-                 'language_info': {'name': 'python'}, 'comparison': {'generated': True}})
-    for index, cell in enumerate(notebook.cells):
-        cell.id = f'comparison-{index}'
-    return notebook
+def update_readme(root, section):
+    """Replace only the managed section, reading other prose immediately before writing."""
+    path = Path(root) / 'README.md'
+    original = path.read_text() if path.exists() else '# Pathogenicity predictor\n'
+    counts = (original.count(SECTION_START), original.count(SECTION_END))
+    require(counts in [(0, 0), (1, 1)], 'README comparison markers are incomplete or duplicated')
+    block = SECTION_START + '\n' + section + '\n' + SECTION_END
+    if counts == (1, 1):
+        start, end = original.index(SECTION_START), original.index(SECTION_END)
+        require(start < end, 'README comparison markers are reversed')
+        updated = original[:start] + block + original[end + len(SECTION_END):]
+    else:
+        index = original.find('\n## Research questions\n')
+        if index < 0:
+            updated = original.rstrip() + '\n\n' + block + '\n'
+        else:
+            updated = original[:index].rstrip() + '\n\n' + block + '\n' + original[index:]
+    require(not path.exists() or path.read_text() == original, 'README changed during update; retry')
+    atomic_write(path, updated)
 
 
 def refresh(root=ROOT, repetitions=REPETITIONS):
-    """Publish an executed comparison; source notebooks are never executed."""
+    """Publish verified comparison results to README; no notebooks are executed."""
     import fcntl
-    from nbclient import NotebookClient
     root = Path(root)
     output = root / 'notebooks/results/comparison'
     output.mkdir(parents=True, exist_ok=True)
@@ -414,7 +429,7 @@ def refresh(root=ROOT, repetitions=REPETITIONS):
         fcntl.flock(lock, fcntl.LOCK_EX)
         before = source_signature(root)
         result = collect(root, repetitions)
-        bundles = render(result, root)
+        section = render(result, root)
         require(before == source_signature(root), 'Sources changed during refresh; retry after writes finish')
         result['sources'] = source_signature(root, content=True)
         atomic_write(output / 'summary.json', json.dumps(result, indent=2, allow_nan=False) + '\n')
@@ -422,29 +437,5 @@ def refresh(root=ROOT, repetitions=REPETITIONS):
                             {metric: row.get('metrics', {}).get(metric, {}).get('value')
                              for metric in ['auroc', 'average_precision']} for row in result['methods']])
         atomic_write(output / 'methods.csv', csv.to_csv(index=False))
-        # Execute the comparison's display cell in a fresh kernel. The private
-        # payload avoids recursively refreshing while that cell is being run.
-        payload = output / 'display.json'
-        atomic_write(payload, json.dumps(bundles, allow_nan=False) + '\n')
-        notebook = notebook_with_outputs([])
-        client = NotebookClient(notebook, timeout=120, kernel_name='python3',
-                                resources={'metadata': {'path': str(ROOT)}})
-        client.execute(env={**os.environ, 'PATHOGENITY_COMPARISON_DISPLAY': str(payload.resolve())})
-        require(all(cell.execution_count is not None for cell in notebook.cells if cell.cell_type == 'code'),
-                'Comparison contains an unexecuted code cell')
-        require(before == source_signature(root), 'Sources changed during notebook execution; retry')
-        atomic_write(root / 'comparison.ipynb', nbformat.writes(notebook))
-        return result, bundles
-
-
-def show():
-    from IPython.display import display
-    from .comparison_watch import start
-    payload = os.environ.get('PATHOGENITY_COMPARISON_DISPLAY')
-    if payload:
-        bundles = read_json(payload)
-    else:
-        start(ROOT)
-        _, bundles = refresh()
-    for bundle in bundles:
-        display(bundle, raw=True)
+        update_readme(root, section)
+        return result, section

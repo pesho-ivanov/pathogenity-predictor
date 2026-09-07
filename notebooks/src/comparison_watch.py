@@ -1,4 +1,4 @@
-"""Refresh the executed comparison; poll small files without executing source notebooks.
+"""Refresh the README comparison; poll small files without executing notebooks.
 
 Run: python -m notebooks.src.comparison_watch --start
 Stop: python -m notebooks.src.comparison_watch --stop
@@ -78,7 +78,7 @@ def watch(root=comparison.ROOT, interval=2):
                     comparison.refresh(root)
                     last = current
                     state.update(last_refresh_utc=datetime.now(timezone.utc).isoformat(), error=None)
-                    print(f'{state["last_refresh_utc"]}: refreshed comparison.ipynb', flush=True)
+                    print(f'{state["last_refresh_utc"]}: refreshed README comparison', flush=True)
             except Exception as error:
                 state['error'] = f'{type(error).__name__}: {error}'
                 print(state['error'], flush=True)
@@ -106,7 +106,7 @@ def main():
         print('Automatic comparison refresh enabled. Logs: notebooks/results/comparison/watch.log')
     else:
         comparison.refresh(args.root)
-        print('Refreshed comparison.ipynb once. Use --start for automatic updates.')
+        print('Refreshed README comparison once. Use --start for automatic updates.')
 
 
 if __name__ == '__main__':

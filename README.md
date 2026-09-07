@@ -3,12 +3,88 @@
 A small research project for predicting the pathogenicity of **missense variants**
 using ClinVar data.
 
-Open [comparison.ipynb](comparison.ipynb) for all competing methods' current
-validation metrics, coverage and experiment status. Run its single cell once to
-enable automatic refresh when a source notebook is saved or result exports change.
-The watcher updates the file on disk; reload an already open comparison to see it.
-It reads verified predictions and never reruns a model. Q2, Q8 and Q9 are supported;
-the [export contract](notebooks/results/README.md#comparison-exports) supports new notebooks.
+<!-- comparison:start -->
+## Method comparison
+
+Compare methods on Q1’s frozen missense validation set.
+
+**1,342 missense validation variants · ClinVar labels**
+
+| Method | Notebook | Scored / validation | AUROC [95% CI] | Average precision [95% CI] |
+| --- | --- | --- | --- | --- |
+| Evo2 + logistic regression | [Q2](notebooks/Q2-evo2-classifier.ipynb) | 1,342 / 1,342 | 0.861 [0.834, 0.885] | 0.775 [0.719, 0.822] |
+| Evo2 zero-shot | [Q2](notebooks/Q2-evo2-classifier.ipynb) | 1,342 / 1,342 | 0.866 [0.840, 0.890] | 0.769 [0.713, 0.817] |
+| Sequence + logistic regression | [Q2](notebooks/Q2-evo2-classifier.ipynb) | 1,342 / 1,342 | 0.563 [0.529, 0.598] | 0.390 [0.330, 0.455] |
+| SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | — | — | — |
+| PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | — | — | — |
+| REVEL | [Q8](notebooks/Q8-existing-tools.ipynb) | — | — | — |
+| AlphaMissense | [Q8](notebooks/Q8-existing-tools.ipynb) | 1,276 / 1,342 | 0.967 [0.958, 0.976] | 0.943 [0.922, 0.960] |
+| EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | — | — | — |
+| PrimateAI-3D | [Q8](notebooks/Q8-existing-tools.ipynb) | — | — | — |
+| Evo2 fine-tuned (BioNeMo) | [Q9](notebooks/Q9-evo2-finetuning.ipynb) | 1,342 / 1,342 | 0.654 [0.614, 0.690] | 0.552 [0.475, 0.618] |
+| Evo2 frozen head (BioNeMo) | [Q9](notebooks/Q9-evo2-finetuning.ipynb) | 1,342 / 1,342 | 0.654 [0.614, 0.690] | 0.552 [0.475, 0.618] |
+| Evo2 zero-shot (BioNeMo) | [Q9](notebooks/Q9-evo2-finetuning.ipynb) | 1,342 / 1,342 | 0.646 [0.603, 0.684] | 0.573 [0.500, 0.639] |
+| Sequence classifier (Q9) | [Q9](notebooks/Q9-evo2-finetuning.ipynb) | 1,342 / 1,342 | 0.563 [0.529, 0.598] | 0.390 [0.330, 0.455] |
+
+![Validation AUROC and average precision with 95% confidence intervals](assets/comparison.png)
+
+**Direct comparison on the same variants**
+
+| Method | Shared variants | AUROC [95% CI] | Average precision [95% CI] |
+| --- | --- | --- | --- |
+| Evo2 + logistic regression (Q2) | 1276 | 0.866 [0.839, 0.892] | 0.782 [0.730, 0.827] |
+| Evo2 zero-shot (Q2) | 1276 | 0.866 [0.839, 0.892] | 0.772 [0.718, 0.819] |
+| Sequence + logistic regression (Q2) | 1276 | 0.560 [0.525, 0.597] | 0.384 [0.323, 0.454] |
+| AlphaMissense (Q8) | 1276 | 0.967 [0.958, 0.976] | 0.943 [0.920, 0.961] |
+| Evo2 fine-tuned (BioNeMo) (Q9) | 1276 | 0.664 [0.628, 0.704] | 0.562 [0.489, 0.634] |
+| Evo2 frozen head (BioNeMo) (Q9) | 1276 | 0.664 [0.628, 0.704] | 0.562 [0.489, 0.634] |
+| Evo2 zero-shot (BioNeMo) (Q9) | 1276 | 0.647 [0.605, 0.688] | 0.576 [0.503, 0.643] |
+| Sequence classifier (Q9) (Q9) | 1276 | 0.560 [0.525, 0.597] | 0.384 [0.323, 0.454] |
+
+<details>
+<summary>Provenance, missing results and limitations</summary>
+
+| Method | Details |
+| --- | --- |
+| Evo2 + logistic regression (Q2) | Development result; validation participates in model selection. |
+| Evo2 zero-shot (Q2) | Development result; validation participates in model selection. |
+| Sequence + logistic regression (Q2) | Development result; validation participates in model selection. |
+| SIFT4G (Q8) | Surveyed tool; no pilot predictions exported. |
+| PolyPhen-2 (Q8) | Surveyed tool; no pilot predictions exported. |
+| REVEL (Q8) | Surveyed tool; no pilot predictions exported. |
+| AlphaMissense (Q8) | ClinVar calibration overlap unresolved; maximum matching transcript score. |
+| EVE (Q8) | Surveyed tool; no pilot predictions exported. |
+| PrimateAI-3D (Q8) | Surveyed tool; no pilot predictions exported. |
+| Evo2 fine-tuned (BioNeMo) (Q9) | Development result; validation participates in model selection. |
+| Evo2 frozen head (BioNeMo) (Q9) | Development result; validation participates in model selection. |
+| Evo2 zero-shot (BioNeMo) (Q9) | Development result; validation participates in model selection. |
+| Sequence classifier (Q9) (Q9) | Development result; validation participates in model selection. |
+
+```json
+{
+  "cohort": {
+    "protocol_sha256": "0b1b21eb6fb829884d1f8bd09c0314a34ae2acddb018f239d6346f7933566409",
+    "vcf_exports": {
+      "clinvar-test-pilot.vcf": "1007a3b5229199203c1174e78d430ad0195b9f33ea258af1829077223e72f4eb",
+      "clinvar-train-pilot.vcf": "db7bf9cd1b743e2a9f7045a7053f268b9f568dd9726347af286e224c1b572ea6"
+    },
+    "validation_variants": 1342
+  },
+  "source_errors": {},
+  "bootstrap": {
+    "repetitions": 1000,
+    "seed": 42
+  },
+  "generated_utc": "2026-09-07T16:55:22.738866+00:00"
+}
+```
+
+</details>
+
+**Conclusion.** Use the common-subset comparison to assess methods; coverage remains a separate limitation.
+
+These are development results: validation participates in model selection. AlphaMissense has unresolved ClinVar calibration overlap. The 95% intervals resample whole Q1 components and do not correct selection bias or establish clinical validity.
+<!-- comparison:end -->
 
 ## Research questions
 
@@ -88,25 +164,12 @@ exposure limits independence claims.
 
 ### [Q9. Can light fine-tuning of Evo2 improve missense pathogenicity prediction compared with frozen representations and zero-shot scoring?](notebooks/Q9-evo2-finetuning.ipynb)
 
-Train a small fraction of Evo2's parameters alongside a classification head,
+Train Hyena block 23 alongside a classification head, keeping attention block 24 frozen,
 using Q1's fixed pilot partitions and Q2's checkpoint and sequence contexts.
-Compare validation performance, training time and GPU memory with Q2's baselines.
+Compare validation performance, training time and GPU memory with frozen and
+zero-shot baselines produced by the same BioNeMo model, plus a sequence baseline.
 Use the [pinned BioNeMo tutorial](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/ca16c2acf9bf813d020b6d1e2d4e1240cfef6a69/docs/docs/user-guide/examples/bionemo-evo2/fine-tuning-tutorial.ipynb)
 as the training scaffold, adding selective weight updates and supervised missense classification.
-
-## Notebooks
-
-Research notebooks and their explanations live in `notebooks/`; generated files
-live in `notebooks/results/`.
-The aggregate [comparison notebook](comparison.ipynb) lives in the repository root.
-To enable its watcher without opening Jupyter, run
-`.venv/bin/python -m notebooks.src.comparison_watch --start` from this directory.
-Use `--stop` to stop it; omit both flags for a one-time refresh. Start it again after
-a workspace restart. The watcher requires only the existing CPU notebook dependencies.
-Implementation lives in [q0.py](notebooks/src/q0.py), [q1.py](notebooks/src/q1.py)
-and [q2.py](notebooks/src/q2.py). The tool survey uses [q8.py](notebooks/src/q8.py)
-and a [bundled source catalog](notebooks/src/q8_catalog.json); its
-[AlphaMissense workflow](notebooks/src/q8_baseline.py) downloads scores and evaluates the pilot on CPU.
 
 ## Data
 

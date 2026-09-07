@@ -27,7 +27,8 @@ candidate; use the simplest approach justified by validation results.
 - Keep one shared `requirements.txt` at the project root for all notebooks.
 - Store external inputs in `data/`. Q1 also writes the shared experiment inputs
   `data/clinvar-train-pilot.vcf` and `data/clinvar-test-pilot.vcf` there. Store other generated
-  files under `notebooks/results/`, organized by research question.
+  files under `notebooks/results/`, organized by research question, except the
+  small README comparison plot in `assets/comparison.png`.
 - All subsequent experiments must use Q1's missense-only, fixed VCF partitions: `clinvar-train-pilot.vcf`
   for training and `clinvar-test-pilot.vcf` for validation. Keep their membership and
   checksums fixed; do not resample or move variants between the files.
@@ -65,9 +66,9 @@ candidate; use the simplest approach justified by validation results.
 ## Results and presentation
 
 - Present explanations and results as Jupyter notebooks (`.ipynb`) in `notebooks/`.
-- Keep the aggregate `comparison.ipynb` in the repository root. Refresh it when
-  source notebooks or result exports change; compare only matching frozen cohorts
-  and show missing/blocked methods explicitly.
+- Keep the aggregate comparison in the root `README.md`. Refresh its marked
+  section and plot when source notebooks or result exports change; compare only
+  matching frozen cohorts and show missing/blocked methods explicitly.
 - Name notebooks with their question number and one or two descriptive keywords,
   separated by hyphens, for example `Q0-clinvar-summary.ipynb`.
 - Title research questions in `README.md` as `Q0`, `Q1`, and so on, followed by
@@ -82,7 +83,7 @@ candidate; use the simplest approach justified by validation results.
   Notebook code cells should contain only imports and short calls into those files.
 - Save every notebook after all nonempty code cells have executed in order from
   a fresh kernel, with execution counts and outputs retained. Remove unused empty
-  cells, resolve errors, and apply this requirement to automatic comparison updates.
+  cells, resolve errors, and apply this requirement to automatic notebook updates.
 - Use brief descriptions and favor informative images and plots.
 - Use tables sparingly; preferably hide detailed tables in expandable dropdowns.
 - End every notebook with a short conclusion that directly answers its research
