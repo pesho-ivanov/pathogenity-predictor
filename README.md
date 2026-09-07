@@ -3,8 +3,8 @@
 A small research project for predicting genetic variant pathogenicity from
 ClinVar data. See [GOALS.md](GOALS.md) for the project requirements.
 
-The project is at the setup stage. No ClinVar predictor has been trained or
-validated yet.
+Q0 explores the local ClinVar data and proposes a conservative SNV cohort.
+No ClinVar predictor has been trained or validated yet.
 
 Clone with the Evo2 source included:
 
@@ -26,6 +26,10 @@ Explore variant types, genes, pathogenicity labels, review status, missing
 annotations, conflicting classifications, and duplicate or related records.
 Use plots to reveal class imbalance and potential leakage, then define an
 initial dataset and filtering criteria.
+
+[Q0 notebook](notebooks/Q0.ipynb): full-file composition, label and review-status
+plots, data-quality and coordinate-overlap diagnostics, and a proposed cohort.
+All labels are explored; this is development data, not an untouched test set.
 
 ### Q1. Can a small classifier on frozen Evo2 representations outperform zero-shot Evo2 scoring on previously unseen genes?
 
@@ -75,13 +79,43 @@ are available.
 
 ## Notebooks
 
-`notebooks/` is reserved for project notebooks. Explanations and results belong
-in `results/`; briefly document new notebooks here.
+Research notebooks and their explanations live in `notebooks/`; generated files
+live in `results/`. Q0 is linked
+above; Q1–Q6 have not been implemented yet. Reusable Q0 logic is in [q0.py](notebooks/q0.py).
+
+### Running Q0
+
+Use Python 3.12 and the local input described in [data/README.md](data/README.md).
+The notebook scans the full file on CPU, without GPU use or model downloads.
+On the machine documented below, execution took about two minutes with 6.9 GiB
+peak process memory. Allow 16 GB of RAM for headroom. There is no random sampling.
+
+Create an isolated environment from the project root:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m ipykernel install --user --name gamow-q0 --display-name "Gamow Q0"
+.venv/bin/jupyter lab notebooks/Q0.ipynb
+```
+
+Select the **Gamow Q0** kernel and run all cells. Alternatively, execute from a
+fresh kernel at the command line:
+
+```bash
+.venv/bin/jupyter execute notebooks/Q0.ipynb --kernel_name=gamow-q0 --inplace --timeout=1200
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+The notebook verifies the input checksum, exports audit summaries and a
+provisional cohort under `results/q0/`, and keeps detailed tables in dropdowns.
+It does not assign train/validation/test splits or certify that leakage is absent.
 
 ## Data
 
 The local ClinVar VCF is excluded from Git. See [data/README.md](data/README.md)
-for its location and preparation command.
+for its location and preparation command. `data/` contains external inputs only.
+Generated artifacts are described in [results/README.md](results/README.md).
 
 ## Machine configuration
 

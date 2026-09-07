@@ -9,3 +9,7 @@ __pycache__/
 # Keep large local datasets out of Git.
 /data/*
 !/data/README.md
+
+# Regenerate notebook artifacts instead of committing them.
+/results/*
+!/results/README.md

@@ -7,6 +7,9 @@ candidate; use the simplest approach justified by validation results.
 ## Reproducibility and implementation
 
 - Keep dependencies, abstractions, and model complexity minimal.
+- Keep one shared `requirements.txt` at the project root for all notebooks.
+- Reserve `data/` for external input data. Store files produced by notebooks
+  under `results/`, organized by research question (for example, `results/q0/`).
 - Put reusable implementation in clear Python files with explicit inputs and
   outputs. Make data preparation, feature construction, split assignment,
   training, and evaluation easy to inspect.
@@ -37,7 +40,7 @@ candidate; use the simplest approach justified by validation results.
 
 ## Results and presentation
 
-- Present explanations and results as Jupyter notebooks (`.ipynb`) in `results/`.
+- Present explanations and results as Jupyter notebooks (`.ipynb`) in `notebooks/`.
 - Title research questions in `README.md` as `Q0`, `Q1`, and so on, followed by
   the question text. Each question must correspond to a notebook, linked from
   its README entry and identified by the same question label.
@@ -46,6 +49,7 @@ candidate; use the simplest approach justified by validation results.
 - Keep notebooks short and low in code: import Python modules and use a small
   number of clear calls to execute the complete workflow. Keep important settings,
   inputs, outputs, and validation checks visible and the implementation traceable.
+- Keep Python files used by a notebook in the same directory as that notebook.
 - Use brief descriptions and favor informative images and plots.
 - Use tables sparingly; preferably hide detailed tables in expandable dropdowns.
 - Report evaluation results, uncertainty, and practical limitations concisely.
@@ -56,6 +60,6 @@ candidate; use the simplest approach justified by validation results.
 
 A fresh environment can reproduce data preparation, frozen splits, leakage
 checks, model fitting or inference, and final evaluation by following the
-notebooks in `results/`. Those notebooks explain the approach and present the
+notebooks in `notebooks/`. Those notebooks explain the approach and present the
 results with concise text and useful visuals, backed by small, readable Python
 modules.
