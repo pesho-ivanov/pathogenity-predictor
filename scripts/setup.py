@@ -38,10 +38,10 @@ def gpu_base(python):
             f'print(json.dumps({{p: m.version(p) for p in {list(GPU_BASE)!r}}}))')
     result = subprocess.run([str(python), '-c', code], text=True, capture_output=True)
     if result.returncode:
-        raise RuntimeError(f'GPU setup needs the compiled stack in {IMAGE}. See SETUP.md.')
+        raise RuntimeError(f'GPU setup needs the compiled stack in {IMAGE}. See README.md#setup.')
     actual = json.loads(result.stdout)
     if actual != GPU_BASE:
-        raise RuntimeError(f'GPU stack differs from {IMAGE}: {actual}. See SETUP.md.')
+        raise RuntimeError(f'GPU stack differs from {IMAGE}: {actual}. See README.md#setup.')
     return actual
 
 
@@ -63,7 +63,7 @@ def install(profile, destination):
         raise RuntimeError('Use Python 3.12, the version used for the recorded experiments.')
     for executable in ['git', 'curl']:
         if shutil.which(executable) is None:
-            raise RuntimeError(f'Missing {executable}. Install the prerequisites in SETUP.md.')
+            raise RuntimeError(f'Missing {executable}. Install the prerequisites in README.md#setup.')
     gpu = profile == 'gpu'
     if gpu:
         gpu_base(sys.executable)

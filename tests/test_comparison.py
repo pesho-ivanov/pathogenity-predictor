@@ -390,11 +390,16 @@ class ComparisonTests(unittest.TestCase):
         self.assertIn('**Direct comparison on the same variants**', readme)
         self.assertIn('[Q8](notebooks/Q8-existing-tools.ipynb)', readme)
         for row in result['methods']:
+            if row['id'] in c.README_EXCLUDED_METHODS:
+                self.assertNotIn(row['method'], readme)
+                continue
             self.assertIn(row['method'], readme)
             self.assertIn(c.html.escape(row['note']).replace('|', r'\|').replace('\n', '<br>'), readme)
             for key in ['auroc', 'average_precision']:
                 self.assertIn(c.format_metric(row, key), readme)
-        for row in result['common'].values():
+        for identifier, row in result['common'].items():
+            if identifier in c.README_EXCLUDED_METHODS:
+                continue
             self.assertIn(c.format_metric(row, 'auroc'), readme)
             self.assertIn(c.format_metric(row, 'average_precision'), readme)
         metadata = json.loads(readme.split('```json\n', 1)[1].split('\n```', 1)[0])

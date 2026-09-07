@@ -24,6 +24,8 @@ Q2_METHODS = {'zero_shot': 'Evo2 1B base zero-shot (Vortex, FP8)'}
 # One BioNeMo representative in the README; the full experiment stays in Q9.
 Q9_METHODS = {'frozen': 'Evo2 1B base frozen head (BioNeMo, BF16)',
               'sequence': 'Sequence baseline (Evo2 1B experiment)'}
+# Keep the archived 1B experiment in result records, outside the README tables.
+README_EXCLUDED_METHODS = {'q2:zero_shot', 'q9:frozen', 'q9:sequence'}
 Q8_NOTES = {
     'AlphaMissense': 'ClinVar calibration overlap unresolved; maximum matching transcript score.',
     'REVEL': 'HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations.',
@@ -496,19 +498,25 @@ def format_runtime(row):
     return f'{seconds / 3600:.1f} h'
 
 
-def markdown_table(rows):
+def markdown_table(rows, separator_before=None):
     """Render GitHub tables without an additional formatting dependency."""
     columns = list(rows[0])
     def line(values):
         return '| ' + ' | '.join(str(value).replace('|', r'\|').replace('\n', '<br>') for value in values) + ' |'
-    return '\n'.join([line(columns), line(['---'] * len(columns))] +
-                     [line(row[column] for column in columns) for row in rows])
+    lines = [line(columns), line(['---'] * len(columns))]
+    for index, row in enumerate(rows):
+        if index == separator_before and index > 0:
+            lines.append(line(['<hr>'] * len(columns)))
+        lines.append(line(row[column] for column in columns))
+    return '\n'.join(lines)
 
 
 def render(result, root=ROOT):
     """Return the Markdown evaluation tables, paper links and provenance."""
     root = Path(root)
-    rows = sorted(result['methods'], key=lambda row: row['id'] == 'q8:PrimateAI-3D')
+    rows = sorted((row for row in result['methods'] if row['id'] not in README_EXCLUDED_METHODS),
+                  key=lambda row: (row['question'] == 'Q8', row['id'] == 'q8:PrimateAI-3D'))
+    external_start = sum(row['question'] != 'Q8' for row in rows)
     notebooks = {p.stem.split('-')[0].upper(): p for p in (root / 'notebooks').glob('Q*.ipynb')}
     table = []
     for row in rows:
@@ -526,17 +534,19 @@ def render(result, root=ROOT):
              f'ClinVar {cohort.get("clinvar_date", "unspecified snapshot")} · {cohort.get("scope", "pilot")} cohort**' if cohort
              else '**Frozen validation inputs unavailable**')
     sections = ['## Method comparison', 'Compare methods on Q1’s current frozen missense validation set. Only results matching its snapshot and complete cohort are included.', intro,
-                markdown_table(table),
+                markdown_table(table, separator_before=external_start),
                 'Runtime covers the recorded stages listed in the details below; hardware and caching differ between workflows. '
                 '“—” means no verified timing is available for the current cohort.']
     available = [row for row in rows if row.get('metrics')]
     if result['common']:
+        common_rows = [row for row in available if row['id'] in result['common']]
         table = [{'Method': f'{row["method"]} ({row["question"]})',
                   'Shared variants': result['common'][row['id']]['total'],
                   'AUROC [95% CI]': format_metric(result['common'][row['id']], 'auroc'),
                   'Average precision [95% CI]': format_metric(result['common'][row['id']], 'average_precision')}
-                 for row in available if row['id'] in result['common']]
-        sections.extend(['**Direct comparison on the same variants**', markdown_table(table)])
+                 for row in common_rows]
+        sections.extend(['**Direct comparison on the same variants**',
+                         markdown_table(table, separator_before=sum(row['question'] != 'Q8' for row in common_rows))])
     notes = []
     for row in rows:
         detail = row['note']
@@ -546,7 +556,7 @@ def render(result, root=ROOT):
             detail += ' Runtime unavailable: ' + row['runtime_error']
         notes.append({'Method': html.escape(f'{row["method"]} ({row["question"]})'), 'Details': html.escape(detail)})
     sections.append('<details>\n<summary>Provenance, missing results and limitations</summary>\n\n' +
-                    markdown_table(notes) + '\n\n```json\n' + json.dumps({
+                    markdown_table(notes, separator_before=external_start) + '\n\n```json\n' + json.dumps({
                         'cohort': cohort, 'source_errors': result['errors'], 'bootstrap': result['bootstrap'],
                         'generated_utc': result['generated_utc']}, indent=2) + '\n```\n\n</details>')
     if len(available) == 1:

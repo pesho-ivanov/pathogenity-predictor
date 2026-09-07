@@ -53,7 +53,7 @@ def check(profile):
         # operator handles after Vortex registers the same operator names.
         from vortex.ops import local_flash_attn_func
         if not torch.cuda.is_available():
-            raise RuntimeError('CUDA is unavailable. Expose the GPUs to the container (see SETUP.md).')
+            raise RuntimeError('CUDA is unavailable. Expose the GPUs to the container.')
         if shutil.which('nvcc') is None:
             raise RuntimeError('nvcc is required to compile BioNeMo CUDA extensions.')
         result['gpus'] = []

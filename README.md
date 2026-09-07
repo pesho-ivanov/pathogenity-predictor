@@ -26,15 +26,14 @@ Compare methods on Q1’s current frozen missense validation set. Only results m
 
 | Method | Notebook | Paper | Scored / validation | AUROC [95% CI] | Average precision [95% CI] | Runtime |
 | --- | --- | --- | --- | --- | --- | --- |
-| Evo2 1B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | — | — | — | — |
+| Evo2 7B base frozen head (BioNeMo, BF16) | [Q10](notebooks/Q10-evo2-7b.ipynb) | — | — | — | — | — |
+| Evo2 7B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | 17,927 / 17,927 | 0.837 [0.824, 0.849] | 0.724 [0.686, 0.755] | 2.3 h |
+| <hr> | <hr> | <hr> | <hr> | <hr> | <hr> | <hr> |
 | SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | 16,917 / 17,927 | 0.878 [0.865, 0.890] | 0.772 [0.734, 0.804] | 13.0 s |
 | PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | 16,430 / 17,927 | 0.894 [0.883, 0.905] | 0.822 [0.781, 0.852] | 12.4 s |
 | REVEL | [Q8](notebooks/Q8-existing-tools.ipynb) | [Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016) | 17,720 / 17,927 | 0.974 [0.970, 0.978] | 0.958 [0.945, 0.968] | 1.8 min |
 | AlphaMissense | [Q8](notebooks/Q8-existing-tools.ipynb) | [Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492) | 16,884 / 17,927 | 0.962 [0.956, 0.967] | 0.940 [0.923, 0.951] | 1.2 min |
 | EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | 9,284 / 17,927 | 0.909 [0.889, 0.925] | 0.916 [0.889, 0.935] | 5.5 s |
-| Evo2 1B base frozen head (BioNeMo, BF16) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — | — |
-| Sequence baseline (Evo2 1B experiment) | [Q9](notebooks/Q9-evo2-1b.ipynb) | — | — | — | — | — |
-| Evo2 7B base frozen head (BioNeMo, BF16) | [Q10](notebooks/Q10-evo2-7b.ipynb) | — | — | — | — | — |
 | PrimateAI-3D (licensed) | [Q8](notebooks/Q8-existing-tools.ipynb) | [Gao et al. (2023)](https://doi.org/10.1126/science.abn8197) | — | — | — | — |
 
 Runtime covers the recorded stages listed in the details below; hardware and caching differ between workflows. “—” means no verified timing is available for the current cohort.
@@ -43,6 +42,8 @@ Runtime covers the recorded stages listed in the details below; hardware and cac
 
 | Method | Shared variants | AUROC [95% CI] | Average precision [95% CI] |
 | --- | --- | --- | --- |
+| Evo2 7B base zero-shot (Vortex, FP8) (Q2) | 8817 | 0.815 [0.797, 0.832] | 0.824 [0.791, 0.855] |
+| <hr> | <hr> | <hr> | <hr> |
 | SIFT4G (Q8) | 8817 | 0.887 [0.872, 0.901] | 0.881 [0.853, 0.906] |
 | PolyPhen-2 (Q8) | 8817 | 0.900 [0.887, 0.913] | 0.903 [0.879, 0.925] |
 | REVEL (Q8) | 8817 | 0.972 [0.966, 0.978] | 0.976 [0.967, 0.984] |
@@ -54,15 +55,14 @@ Runtime covers the recorded stages listed in the details below; hardware and cac
 
 | Method | Details |
 | --- | --- |
-| Evo2 1B base zero-shot (Vortex, FP8) (Q2) | Q2 cohort is stale |
+| Evo2 7B base frozen head (BioNeMo, BF16) (Q10) | Export cohort is stale |
+| Evo2 7B base zero-shot (Vortex, FP8) (Q2) | Zero-shot inference on the complete current full validation cohort. No parameters or thresholds fitted. Archived September results are not mixed with this run. Pretraining, homology and annotation overlap remain unresolved; validation is development data, not an untouched final test. Runtime: Validation scoring batches summed across runs; excludes downloads, model loading and evaluation. |
+| <hr> | <hr> |
 | SIFT4G (Q8) | dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
 | PolyPhen-2 (Q8) | HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
 | REVEL (Q8) | HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training. |
 | AlphaMissense (Q8) | ClinVar calibration overlap unresolved; maximum matching transcript score. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training. |
 | EVE (Q8) | dbNSFP4.9a continuous EVE score; maximum across matches, no confidence-category filtering. Limited protein/position coverage. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
-| Evo2 1B base frozen head (BioNeMo, BF16) (Q9) | Q9 cohort is stale |
-| Sequence baseline (Evo2 1B experiment) (Q9) | Q9 cohort is stale |
-| Evo2 7B base frozen head (BioNeMo, BF16) (Q10) | Export cohort is stale |
 | PrimateAI-3D (Q8) | PrimateAI-3D has not been run: Illumina requires a signed license agreement and supplies the score/model download link by email. No approved link or licensed score file was provided. The original PrimateAI scores in dbNSFP are a different model and are not substituted. |
 
 ```json
@@ -86,7 +86,7 @@ Runtime covers the recorded stages listed in the details below; hardware and cac
     "repetitions": 1000,
     "seed": 42
   },
-  "generated_utc": "2026-09-07T20:31:45.583530+00:00"
+  "generated_utc": "2026-09-07T21:29:44.301325+00:00"
 }
 ```
 
@@ -226,8 +226,8 @@ Report paired component-bootstrap comparisons and compute usage. The original
 
 ## Setup
 
-See [SETUP.md](SETUP.md) for a fresh CPU installation, the NVIDIA GPU container,
-notebook execution and transferring existing data and experiments. Quick CPU setup:
+Use Linux x86-64 with Python 3.12, virtual-environment support, Git and curl.
+Quick CPU setup:
 
 ```bash
 git clone --recurse-submodules https://github.com/pesho-ivanov/pathogenity-predictor.git
@@ -258,38 +258,57 @@ The system Python is externally managed (PEP 668): direct `pip install` commands
 are blocked. Use a virtual environment and its Jupyter kernel for package
 changes.
 
-## Next steps
+## Unsuccessful attempts
 
-Use the frozen July partitions throughout development: **46,888 training and
-17,927 validation variants**. Work in this order, keeping completed results and
-their protocols reproducible.
+### Evo2 1B: numerical sensitivity and no fine-tuning gain
 
-1. **Complete the full-cohort Evo2 baselines (Q2, Q9, Q10).** Finish zero-shot
-   scoring and train the sequence baseline and frozen 1B/7B classifiers on the
-   full training partition. Fit preprocessing on training data only. Publish
-   current-cohort predictions through fully executed notebooks and refresh the
-   comparison above; preserve the archived pilot runs.
-2. **Explain coverage and audit independence (Q8).** Break down missing published
-   scores by gene, class and annotation/matching failure. Investigate overlap
-   with predictor training and calibration data, including related proteins and
-   pretraining sequences, and document what remains unknown. Add PrimateAI-3D
-   when an approved licensed score file becomes available.
-3. **Measure whether Evo2 adds value (Q2, Q8–Q10).** Compare completed methods on
-   the same variants, reporting paired component-bootstrap intervals for
-   differences in AUROC and average precision. Keep coverage visible alongside
-   these comparisons, and report runtime and memory with their measurement
-   scope. Use the results to choose the simplest justified approach.
-4. **Test targeted improvements (Q4, Q9).** Once the baselines are complete,
-   evaluate longer context or light fine-tuning where the results justify the
-   added cost. Change one methodological choice at a time and retain the fixed
-   partitions. Recheck sequence and group separation before each experiment;
-   stop if a context change makes the split incompatible.
-5. **Evaluate confidence and abstention (Q6).** Fit calibration using
-   training-only folds, select operating thresholds on development validation,
-   and report calibration error and error rates at different retained coverage
-   levels. Include uncertainty across held-out gene groups.
-6. **Prepare an untouched final evaluation (Q7).** Define and freeze a separate
-   temporal holdout, with variant, gene and sequence separation checks, before
-   inspecting its outcomes. Lock the selected model, calibration and thresholds
-   before scoring it. The current `clinvar-test.vcf` remains development
-   validation; external training overlap must still be reported.
+NVIDIA's [BioNeMo model compatibility table](https://docs.nvidia.com/bionemo-framework/2.7.1/main/developer-guide/bionemo-evo2/bionemo-evo2-Overview/index.html#available-models-in-ngc)
+documents low BF16 accuracy for the original 1B checkpoint. The
+[fine-tuning tutorial's motivation](https://docs.nvidia.com/bionemo-recipes/latest/main/examples/bionemo-evo2/examples/fine-tuning-tutorial/index.html#background-and-motivation)
+reports near-random BRCA1 zero-shot AUC without FP8. NVIDIA supplies
+`evo2/1b-8k-bf16:1.0`, a checkpoint adapted for BF16. Q9's main comparison used
+the original checkpoint; the adapted version was tested only in numerical
+diagnostics. Q9's original-checkpoint BF16 results are consistent with this
+documented limitation, which we consider a likely contributor to the poor
+performance.
+
+The [Q9 experiments](notebooks/Q9-evo2-1b.ipynb) exposed numerical problems with
+the original 1B checkpoint. Vortex and BioNeMo produced different outputs;
+their RMS normalization differed, although this was not established as the sole
+cause. RMS (root mean square) measures the magnitude of the activations.
+
+In BioNeMo/BF16, Hyena block 23 produced activations around **10¹⁶ RMS**, while
+final attention block 24 contributed only **10⁻⁶ RMS**. Its contribution vanished
+in BF16 addition. Training block 23 allowed effective backbone updates, but the
+September pilot selected **epoch 0**: fine-tuning did not improve validation
+performance over the frozen classifier. The activation imbalance remains
+unexplained. [Diagnostic results](notebooks/results/q9/investigation/summary.json)
+and [backend comparison](notebooks/results/q9/archive/display_error/parity.json).
+
+### Q11: ineffective final attention block
+
+The original Q11 attempt stopped **before training** because final attention
+block **31** was numerically inactive in the tested checkpoint/configuration.
+FP32 optimizer master weights alone did not produce effective BF16 updates.
+Block **30** has demonstrated usable updates, making it a better-supported
+training target; validation must establish whether those updates improve
+prediction.
+
+<details>
+<summary>Q11 diagnostic findings</summary>
+
+- **Vanishing contribution:** block 30 activations were about **1.2 × 10¹¹ RMS**,
+  versus **0.006 RMS** for block 31's attention contribution. BF16 addition left
+  every output element unchanged.
+- **Tiny gradients:** attention-weight gradients were around **10⁻¹⁹** and MLP
+  gradients around **10⁻²⁵**. AdamW's epsilon suppressed the updates further;
+  gradient clipping reduced them roughly **33×** because it included the fixed
+  classifier's gradients.
+- **Master weights were insufficient:** a fresh probe changed **88 FP32 master
+  elements**, but **zero deployed BF16 elements**. Predictions remained identical.
+- **Checkpoint audit:** all **325 loaded tensors** matched the original
+  checkpoint. The tiny final-block weights were already present there; optimizer
+  wiring and the autograd connection were correct. Why pretraining produced this
+  imbalance remains unresolved.
+
+</details>
