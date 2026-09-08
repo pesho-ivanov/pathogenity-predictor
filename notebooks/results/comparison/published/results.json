@@ -309,12 +309,138 @@
       "runtime_scope": "CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training.",
       "runtime_seconds": 5.5,
       "total": 17927
+    },
+    {
+      "covered": 17927,
+      "evidence": {
+        "cell": 7,
+        "count_path": [
+          "validation_variants"
+        ],
+        "kind": "json",
+        "metrics_path": [
+          "metrics",
+          "lora"
+        ],
+        "output": 2
+      },
+      "id": "q14:lora",
+      "local_artifacts": [
+        "notebooks/results/q14/comparison_results.json",
+        "notebooks/results/q14/comparison_predictions.csv",
+        "notebooks/results/q14/full/execution.json",
+        "notebooks/results/q14/full/input_checks.json",
+        "notebooks/results/q14/full/metrics.json",
+        "notebooks/results/q14/full/prediction_provenance.json",
+        "notebooks/results/q14/full/protocol.json",
+        "notebooks/results/q14/full/run_status.json",
+        "notebooks/results/q14/full/validation_predictions.csv"
+      ],
+      "method": "Evo2 7B Q14 LoRA (blocks 29 and 30, rank 8, 512 bp)",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.837889179198329,
+            0.8646611806354662
+          ],
+          "value": 0.8516802213982814
+        },
+        "average_precision": {
+          "ci95": [
+            0.7360322264687718,
+            0.7971362173085316
+          ],
+          "value": 0.7696805255572032
+        }
+      },
+      "note": "Prespecified full-validation confirmation rule met. Full frozen July missense development validation, following repeated selection on its 2,048-variant subset. Variants outside that subset and components absent from it were not used by those recent selection runs, but this repository has previously evaluated the full validation partition. Neither subset is an untouched final test set. Component-bootstrap intervals do not remove selection bias. Pretraining exposure, homology and shared-patient overlap remain unresolved; this research prototype has no clinical validation.",
+      "notebook": "notebooks/Q14-lora-validation.ipynb",
+      "question": "Q14",
+      "runtime_scope": "Current Q14 exploration (43.0 min, including all its search arms) plus separate full validation (34.7 min), shared by LoRA and controls. Excludes inherited Q12 feature extraction/fitting and earlier experiments or attempts. The one-hour target applies only to exploration.",
+      "runtime_seconds": 4662.149342536926,
+      "runtime_status_evidence": [
+        {
+          "notebook": "notebooks/Q14-layer-adapters.ipynb",
+          "path": "notebooks/results/comparison/published/q14-exploration-status-cbb5668dc9c6.json",
+          "sha256": "cbb5668dc9c6d5d2e83111879e5704f2886d29a336164cbfed4e3f9141223dc4"
+        },
+        {
+          "notebook": "notebooks/Q14-lora-validation.ipynb",
+          "path": "notebooks/results/comparison/published/q14-full-status-88992aceeeac.json",
+          "sha256": "88992aceeeac9e54e9cb83ac5ac1505669267fa8452f82495a4ec95a9a83efa2"
+        }
+      ],
+      "total": 17927
+    },
+    {
+      "covered": 17927,
+      "evidence": {
+        "cell": 7,
+        "count_path": [
+          "validation_variants"
+        ],
+        "kind": "json",
+        "metrics_path": [
+          "metrics",
+          "strongest_control"
+        ],
+        "output": 2
+      },
+      "id": "q14:strongest_control",
+      "local_artifacts": [
+        "notebooks/results/q14/comparison_results.json",
+        "notebooks/results/q14/comparison_predictions.csv",
+        "notebooks/results/q14/full/execution.json",
+        "notebooks/results/q14/full/input_checks.json",
+        "notebooks/results/q14/full/metrics.json",
+        "notebooks/results/q14/full/prediction_provenance.json",
+        "notebooks/results/q14/full/protocol.json",
+        "notebooks/results/q14/full/run_status.json",
+        "notebooks/results/q14/full/validation_predictions.csv"
+      ],
+      "method": "Evo2 7B Q14 strongest frozen classifier (magnitude features, 512 bp)",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.8242673932699621,
+            0.852259262355327
+          ],
+          "value": 0.8385649451394851
+        },
+        "average_precision": {
+          "ci95": [
+            0.7164499235839346,
+            0.7778476292781114
+          ],
+          "value": 0.7490670367237504
+        }
+      },
+      "note": "Prespecified full-validation confirmation rule met. Full frozen July missense development validation, following repeated selection on its 2,048-variant subset. Variants outside that subset and components absent from it were not used by those recent selection runs, but this repository has previously evaluated the full validation partition. Neither subset is an untouched final test set. Component-bootstrap intervals do not remove selection bias. Pretraining exposure, homology and shared-patient overlap remain unresolved; this research prototype has no clinical validation.",
+      "notebook": "notebooks/Q14-lora-validation.ipynb",
+      "question": "Q14",
+      "runtime_scope": "Current Q14 exploration (43.0 min, including all its search arms) plus separate full validation (34.7 min), shared by LoRA and controls. Excludes inherited Q12 feature extraction/fitting and earlier experiments or attempts. The one-hour target applies only to exploration.",
+      "runtime_seconds": 4662.149342536926,
+      "runtime_status_evidence": [
+        {
+          "notebook": "notebooks/Q14-layer-adapters.ipynb",
+          "path": "notebooks/results/comparison/published/q14-exploration-status-cbb5668dc9c6.json",
+          "sha256": "cbb5668dc9c6d5d2e83111879e5704f2886d29a336164cbfed4e3f9141223dc4"
+        },
+        {
+          "notebook": "notebooks/Q14-lora-validation.ipynb",
+          "path": "notebooks/results/comparison/published/q14-full-status-88992aceeeac.json",
+          "sha256": "88992aceeeac9e54e9cb83ac5ac1505669267fa8452f82495a4ec95a9a83efa2"
+        }
+      ],
+      "total": 17927
     }
   ],
   "note": "Published measurements recovered verbatim from completed notebook outputs. The prior common subset excludes Q11; without its variant-level source exports no LoRA shared-subset score is inferred.",
   "notebook_sha256": {
     "notebooks/Q1-clinvar-split.ipynb": "e745e4c6392e77db2b8fa85416f14f4c76ac8bbc927249afb78905155fd43bd4",
     "notebooks/Q11-evo2-lora.ipynb": "2a3d68eb088a0d71af30caf53141205dec30e188d13eab509f346808f20ba86b",
+    "notebooks/Q14-layer-adapters.ipynb": "08892096ae3b8982358ff80b6ecd9c150a4bb2b17113a301269af3ddb3af1565",
+    "notebooks/Q14-lora-validation.ipynb": "3f78f3d080ea1c3dbe5f639c517f224eda879431af16e58b87a9c119ec312ac7",
     "notebooks/Q2-evo2-classifier.ipynb": "ff663153fa83188879501c6f1f57d07996def29f55b84fe3b15842c27f6d3f1c",
     "notebooks/Q8-existing-tools.ipynb": "fb1cf7b81480d267354ddd79dfdb5eee666483980d5ad62ad76373126181d04d"
   },

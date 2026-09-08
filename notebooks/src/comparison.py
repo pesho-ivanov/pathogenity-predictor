@@ -30,7 +30,16 @@ README_EXCLUDED_METHODS = {'q2:zero_shot', 'q9:frozen', 'q9:sequence'}
 Q11_METHODS = {'fine_tuned': 'Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp)'}
 PUBLISHED = Path('notebooks/results/comparison/published/results.json')
 NOTEBOOKS = {'Q2': 'Q2-evo2-classifier.ipynb', 'Q8': 'Q8-existing-tools.ipynb',
-             'Q11': 'Q11-evo2-lora.ipynb', 'Q12': 'Q12-lora-validation.ipynb'}
+             'Q11': 'Q11-evo2-lora.ipynb', 'Q12': 'Q12-lora-validation.ipynb',
+             'Q13': 'Q13-lora-validation.ipynb', 'Q14': 'Q14-lora-validation.ipynb',
+             'Q15': 'Q15-lora-validation.ipynb'}
+LORA_FULL_METHODS = {
+    question: {'lora': f'Evo2 7B {question.upper()} LoRA ({blocks}, rank 8, 512 bp)',
+               'strongest_control': f'Evo2 7B {question.upper()} strongest frozen classifier (magnitude features, 512 bp)'}
+    for question, blocks in [('q13', 'block 30'), ('q14', 'blocks 29 and 30'), ('q15', 'blocks 29 and 30')]
+}
+LORA_EXPLORATION_NOTEBOOKS = {'q13': 'Q13-lora-optimization.ipynb', 'q14': 'Q14-layer-adapters.ipynb',
+                            'q15': 'Q15-prefix-ranking.ipynb'}
 Q8_NOTES = {
     'AlphaMissense': 'ClinVar calibration overlap unresolved; maximum matching transcript score.',
     'REVEL': 'HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations.',
@@ -107,6 +116,203 @@ def verified(path, expected):
     require(digest(path) == expected, f'Checksum mismatch: {Path(path).name}')
 
 
+def completed_notebook(path):
+    """Require actual ordered execution; outputs supply result evidence separately."""
+    notebook = read_json(path)
+    cells = [cell for cell in notebook['cells'] if cell['cell_type'] == 'code']
+    require(bool(cells) and all(''.join(cell['source']).strip() for cell in cells)
+            and [cell.get('execution_count') for cell in cells] == list(range(1, len(cells) + 1))
+            and not any(output.get('output_type') == 'error'
+                        for cell in cells for output in cell.get('outputs', [])),
+            'Full-validation notebook is not completely executed')
+    return notebook
+
+
+def notebook_result_payload(notebook, cell_index, output_index):
+    value = notebook['cells'][cell_index]['outputs'][output_index]['data']['text/html']
+    value = ''.join(value) if isinstance(value, list) else value
+    match = re.search(r'<pre>(.*?)</pre>', value, re.S)
+    require(match is not None, 'Full-validation notebook result evidence is missing')
+    return json.loads(html.unescape(match[1]))
+
+
+def result_notebook_evidence(root, relative, completion):
+    """Find the complete result object displayed by the executed source notebook."""
+    root = Path(root)
+    relative = Path(relative)
+    path = root / relative
+    notebook = completed_notebook(path)
+    for cell_index, cell in enumerate(notebook['cells']):
+        for output_index, _ in enumerate(cell.get('outputs', [])):
+            try:
+                payload = notebook_result_payload(notebook, cell_index, output_index)
+            except (ValueError, KeyError, TypeError):
+                continue
+            if payload == completion:
+                return {'path': str(relative), 'sha256': digest(path),
+                        'cell': cell_index, 'output': output_index}
+    raise ValueError('Executed full-validation notebook does not display the completed result object')
+
+
+def full_lora_notebook_evidence(root, question, completion):
+    return result_notebook_evidence(root, Path('notebooks') / NOTEBOOKS[question.upper()], completion)
+
+
+def verify_full_lora_export(root, question, directory, spec, context):
+    """Bind Q13/Q14/Q15 benchmark rows to full predictions and an executed notebook."""
+    label = question.upper()
+    require(spec.get('scope') == 'full_validation' and spec.get('require_complete') is True
+            and context.get('scope') == 'full' and spec.get('vcf_exports') == context['vcf_exports'],
+            f'{label} sampled exploration cannot enter the full-cohort comparison')
+    require(spec['methods'] == LORA_FULL_METHODS[question],
+            f'{label} must export LoRA and its strongest frozen classifier together')
+    required = {'full/metrics.json', 'full/protocol.json', 'full/run_status.json',
+                'full/validation_predictions.csv', 'protocol.json', 'metrics.json', 'selected_model.pt', 'run_status.json'}
+    require(required <= set(spec.get('artifacts', {})), f'{label} completed full-validation evidence is incomplete')
+    completion = read_json(directory / 'full/metrics.json')
+    protocol = read_json(directory / 'full/protocol.json')
+    parent = read_json(directory / 'metrics.json')
+    parent_run = read_json(directory / 'run_status.json')
+    run = read_json(directory / 'full/run_status.json')
+    require(completion.get('scope') == 'full_validation' and completion.get('status') == 'complete'
+            and completion.get('validation_variants') == len(context['validation'])
+            and completion.get('reload_verified') is True and completion.get('frozen_unchanged') is True
+            and completion.get('original_selection_scores_reproduced') is True,
+            f'{label} full validation is incomplete or failed integrity checks')
+    require(protocol.get('question') == question and protocol.get('q1_protocol_sha256') == context['protocol_sha256']
+            and protocol.get('vcf_exports') == context['vcf_exports']
+            and protocol.get('sources') == spec.get('sources') and bool(protocol.get('sources')),
+            f'{label} full-validation protocol or sources differ from its export')
+    fingerprint = hashlib.sha256(json.dumps(protocol, sort_keys=True, allow_nan=False).encode()).hexdigest()
+    require(completion.get('identity') == fingerprint == spec.get('full_identity'),
+            f'{label} full-validation identity is stale')
+    require(parent.get('status') == 'complete' and parent.get('scope') == 'sampled_validation'
+            and parent.get('promotion_passed') is True and parent.get('selected_model') == 'lora'
+            and parent.get('identity') == protocol.get('parent_identity') == spec.get('parent_identity')
+            and protocol.get('parent_metrics_sha256') == spec['artifacts']['metrics.json']
+            and protocol.get('parent_selected_model_sha256') == spec['artifacts']['selected_model.pt']
+            and protocol.get('parent_protocol_sha256') == spec['artifacts']['protocol.json'],
+            f'{label} full validation is not bound to its promoted parent checkpoint')
+    require(completion.get('artifacts', {}).get('validation_predictions.csv')
+            == spec['artifacts']['full/validation_predictions.csv'] == spec['predictions_sha256'],
+            f'{label} comparison predictions differ from completed full predictions')
+    require(all(spec['artifacts'].get('full/' + name) == sha
+                for name, sha in completion.get('artifacts', {}).items()),
+            f'{label} full-validation artifact registry is incomplete')
+    exploration = spec.get('exploration_notebook', {})
+    require(exploration.get('path') == str(Path('notebooks') / LORA_EXPLORATION_NOTEBOOKS[question]),
+            f'{label} completed exploration notebook is missing')
+    verified(root / exploration['path'], exploration['sha256'])
+    require(notebook_result_payload(completed_notebook(root / exploration['path']),
+                                   exploration['cell'], exploration['output']) == parent
+            and parent_run.get('status') == 'complete'
+            and parent_run.get('notebook_sha256') == exploration['sha256'],
+            f'{label} exploration notebook or completion record is stale')
+    evidence = spec.get('notebook', {})
+    require(evidence.get('path') == str(Path('notebooks') / NOTEBOOKS[label]),
+            f'{label} must cite its full-validation notebook')
+    verified(root / evidence['path'], evidence['sha256'])
+    notebook = completed_notebook(root / evidence['path'])
+    require(notebook_result_payload(notebook, evidence['cell'], evidence['output']) == completion,
+            f'{label} notebook evidence differs from completed full metrics')
+    require(run.get('status') == 'complete' and run.get('question') == question
+            and run.get('notebook_sha256') == evidence['sha256'],
+            f'{label} full notebook completion record is missing or stale')
+    require(type(completion.get('confirmation_passed')) is bool
+            and spec.get('confirmation_passed') == completion['confirmation_passed'],
+            f'{label} confirmation outcome differs from completed results')
+    stages = spec.get('runtime_stages', {})
+    require(stages.get('exploration_seconds') == parent_run.get('notebook_execution_seconds')
+            and stages.get('full_validation_seconds') == run.get('notebook_execution_seconds')
+            and all(isinstance(stages.get(key), (int, float)) and not isinstance(stages[key], bool)
+                    and np.isfinite(stages[key]) and stages[key] >= 0
+                    for key in ['exploration_seconds', 'full_validation_seconds']),
+            f'{label} runtime stages do not match completed notebook measurements')
+    seconds = stages['exploration_seconds'] + stages['full_validation_seconds']
+    require(set(spec.get('runtimes', {})) == set(spec['methods'])
+            and all(value.get('seconds') == seconds for value in spec['runtimes'].values()),
+            f'{label} combined runtime differs from its measured stages')
+
+
+def publish_full_lora(question, root=ROOT):
+    """Preserve two completed full-cohort rows without changing other results.
+
+    Status files are copied byte-for-byte to immutable checksum-named files.
+    The registry is replaced last, so an interrupted publication cannot change
+    evidence referenced by its preceding version.
+    """
+    root = Path(root)
+    require(question in LORA_FULL_METHODS, 'Unsupported full LoRA publication')
+    directory = root / 'notebooks/results' / question
+    context = load_context(root)
+    spec = read_json(directory / 'comparison_results.json')
+    require(spec['q1_protocol_sha256'] == context['protocol_sha256'], 'Export cohort is stale')
+    for name, checksum in spec.get('sources', {}).items():
+        verified(root / name, checksum)
+    for name, checksum in spec.get('artifacts', {}).items():
+        verified(directory / name, checksum)
+    verify_full_lora_export(root, question, directory, spec, context)
+    predictions = directory / 'comparison_predictions.csv'
+    verified(predictions, spec['predictions_sha256'])
+    arrays = align_predictions(pd.read_csv(predictions), context, spec['methods'])
+    completion = read_json(directory / 'full/metrics.json')
+    outcome = 'met' if completion['confirmation_passed'] else 'not met'
+    require(f'confirmation rule {outcome}.' in spec.get('limitations', ''),
+            'Published note must retain the actual full-validation confirmation outcome')
+    labels = context['validation'].label.to_numpy()
+    for branch, values in arrays.items():
+        for metric, function in [('auroc', roc_auc_score), ('average_precision', average_precision_score)]:
+            require(np.isclose(completion['metrics'][branch][metric]['value'], function(labels, values),
+                               atol=1e-12, rtol=0),
+                    'Published full metrics differ from verified predictions')
+
+    saved = read_json(root / PUBLISHED)
+    owned = {f'{question}:{branch}' for branch in LORA_FULL_METHODS[question]}
+    prior = published_results(root, context)
+    # A fresh rerun has already replaced its own canonical notebooks. Stale
+    # records for those two IDs are replaceable; all other evidence must pass.
+    require(not set(prior['errors']) - owned, 'Existing published competitor evidence is invalid')
+    require(len({row['id'] for row in saved['methods']}) == len(saved['methods']),
+            'Published method IDs are duplicated')
+    require(not owned & set(saved['published_common']),
+            'Full LoRA publication cannot replace shared-subset evidence')
+    runtime_evidence, copies = [], []
+    for stage, source, evidence in [
+            ('exploration', directory / 'run_status.json', spec['exploration_notebook']),
+            ('full', directory / 'full/run_status.json', spec['notebook'])]:
+        payload = source.read_bytes()
+        checksum = hashlib.sha256(payload).hexdigest()
+        relative = PUBLISHED.parent / f'{question}-{stage}-status-{checksum[:12]}.json'
+        target = root / relative
+        require(not target.exists() or target.read_bytes() == payload,
+                'Immutable published runtime evidence already differs')
+        copies.append((target, payload))
+        runtime_evidence.append({'path': str(relative), 'sha256': checksum, 'notebook': evidence['path']})
+    evidence = spec['notebook']
+    local = ['comparison_results.json', 'comparison_predictions.csv'] + sorted(
+        name for name in spec['artifacts'] if name.startswith('full/'))
+    records = []
+    for branch, method in LORA_FULL_METHODS[question].items():
+        runtime = load_runtime(root, f'{question}:{branch}', spec)
+        require(runtime is not None, 'Published full LoRA runtime is missing')
+        records.append({'id': f'{question}:{branch}', 'question': question.upper(), 'method': method,
+            'covered': completion['validation_variants'], 'total': completion['validation_variants'],
+            'metrics': completion['metrics'][branch], 'note': spec['limitations'],
+            'notebook': evidence['path'], **runtime,
+            'local_artifacts': [str((directory / name).relative_to(root)) for name in local],
+            'evidence': {'kind': 'json', 'cell': evidence['cell'], 'output': evidence['output'],
+                         'metrics_path': ['metrics', branch], 'count_path': ['validation_variants']},
+            'runtime_status_evidence': runtime_evidence})
+    saved['methods'] = [row for row in saved['methods'] if row['id'] not in owned] + records
+    for notebook in [spec['exploration_notebook'], spec['notebook']]:
+        saved['notebook_sha256'][notebook['path']] = notebook['sha256']
+    for target, payload in copies:
+        if not target.exists():
+            atomic_write(target, payload)
+    atomic_write(root / PUBLISHED, json.dumps(saved, indent=2, sort_keys=True, allow_nan=False) + '\n')
+    return records
+
+
 def source_paths(root=ROOT):
     """Only small result inputs, source notebooks and provenance-relevant code."""
     root = Path(root)
@@ -116,6 +322,7 @@ def source_paths(root=ROOT):
     paths.add(root / 'notebooks/src/comparison.py')
     paths.add(root / PUBLISHED)
     paths.update((root / PUBLISHED.parent).glob('*.md'))
+    paths.update((root / PUBLISHED.parent).glob('*.json'))
     for question, names in SOURCE_FILES.items():
         paths.update(root / 'notebooks/results' / question / name for name in names)
     paths.update(root / 'data' / name for name in ['clinvar-train-pilot.vcf', 'clinvar-test-pilot.vcf',
@@ -125,7 +332,9 @@ def source_paths(root=ROOT):
         # This is the documented filename for future notebooks' prediction exports.
         paths.add(path.with_name('comparison_predictions.csv'))
         try:
-            paths.update(path.parent / name for name in read_json(path).get('artifacts', {}))
+            spec = read_json(path)
+            paths.update(path.parent / name for name in spec.get('artifacts', {}))
+            paths.update(root / name for name in spec.get('sources', {}))
         except (OSError, ValueError):
             pass  # The collector reports malformed exports explicitly.
     return sorted(paths)
@@ -447,6 +656,35 @@ def published_results(root, context=None):
                         'Published runtime differs from executed stream')
             else:
                 raise ValueError('Unsupported published evidence')
+            statuses = row.get('runtime_status_evidence')
+            question = row['question'].lower()
+            if question in LORA_FULL_METHODS:
+                require(isinstance(statuses, list) and len(statuses) == 2
+                        and {entry['notebook'] for entry in statuses} == {
+                            row['notebook'], 'notebooks/' + LORA_EXPLORATION_NOTEBOOKS[question]},
+                        'Published LoRA runtime needs both executed notebook stages')
+            if statuses is not None:
+                require(isinstance(statuses, list) and bool(statuses)
+                        and len({entry['path'] for entry in statuses}) == len(statuses),
+                        'Published runtime status evidence must be a nonempty list of distinct files')
+                seconds = 0.
+                for entry in statuses:
+                    relative = Path(entry['path'])
+                    require(not relative.is_absolute() and relative.parent == PUBLISHED.parent
+                            and relative.suffix == '.json', 'Published runtime evidence path is invalid')
+                    verified(root / relative, entry['sha256'])
+                    status = read_json(root / relative)
+                    notebook(entry['notebook'])
+                    duration = status.get('notebook_execution_seconds')
+                    require(status.get('status') == 'complete'
+                            and status.get('question', question) == question
+                            and status.get('notebook_sha256') == saved['notebook_sha256'][entry['notebook']]
+                            and isinstance(duration, (int, float)) and not isinstance(duration, bool)
+                            and np.isfinite(duration) and duration >= 0,
+                            'Published runtime status is incomplete or differs from its executed notebook')
+                    seconds += duration
+                require(not isinstance(row.get('runtime_seconds'), bool) and seconds == row.get('runtime_seconds'),
+                        'Published runtime differs from the measured notebook stage sum')
             if 'runtime_display' in row:
                 line = next(line for line in prior.splitlines() if line.startswith('| ' + row['method'] + ' |'))
                 require(line.rstrip().endswith('| ' + row['runtime_display'] + ' |'),
@@ -615,6 +853,8 @@ def collect(root=ROOT, repetitions=REPETITIONS):
                         and completion.get('validation_variants') == len(validation)
                         and completion.get('reloaded_predictions_verified') is True,
                         'Q12 full validation is incomplete')
+            if question in LORA_FULL_METHODS:
+                verify_full_lora_export(root, question, path.parent, spec, context)
             if question == 'q11':
                 require('metrics.json' in spec.get('artifacts', {}), 'Q11 completion marker is required')
                 completion = read_json(path.parent / 'metrics.json')
@@ -630,7 +870,7 @@ def collect(root=ROOT, repetitions=REPETITIONS):
                 methods[identifier].update(status='Available', note=spec.get('limitations', ''))
                 predictions[identifier] = values
                 exports[identifier] = spec
-        except (OSError, ValueError, KeyError) as error:
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as error:
             result['errors'][question.upper()] = str(error)
             for row in candidates.values():
                 row['note'] = str(error)

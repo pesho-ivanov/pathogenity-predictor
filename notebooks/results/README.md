@@ -22,6 +22,13 @@ A regenerated parent protocol is accepted only when these inputs remain identica
 Valid local predictions take precedence. Invalid or partially present local
 exports remain explicit errors and never fall back to published scores.
 
+Completed LoRA confirmations also retain the original exploration and full-run
+status records as immutable `comparison/published/*-status-*.json` files. Each
+status binds its measured duration to an executed notebook checksum; the two
+durations reproduce the published combined runtime. Publication replaces only
+that experiment's LoRA/control records and preserves competitor and shared-subset
+measurements.
+
 `comparison/published/prior-readme.md` preserves the source for previously
 published Q2/Q8 shared-subset results and rounded timings. Without the original
 per-variant exports, that subset cannot be extended to LoRA. The README labels
@@ -458,6 +465,86 @@ variants and writes `q12/full/`. Only after successful notebook execution does
 it publish `q12/comparison_predictions.csv` and `comparison_results.json`.
 The comparison collector rejects sampled Q12 exports, incomplete full results,
 and missing reload verification. Full validation remains development data.
+
+## Q13/Q14 artifacts: controlled adapter experiments
+
+The follow-up workflows retain Q12's exact 24,576 training and 2,048 validation
+variants and verify its frozen feature cache before reuse. Run
+`.venv/bin/python -m notebooks.src.refresh_q13` for the regularized-head and
+learning-rate comparison, followed by
+`.venv/bin/python -m notebooks.src.refresh_q14` for adapters on blocks 29 and 30
+with the strongest prior frozen classifier held fixed.
+
+[The completed Q14 notebook](../Q14-layer-adapters.ipynb) took **43.0 minutes**
+and selected learning rate **1e-4, step 512**. On the **2,048-variant development
+sample**, LoRA scored **0.845 AUROC / 0.748 AP**, compared with **0.832 / 0.725**
+for the strongest inherited frozen classifier. Paired gains were **+0.0130 AUROC
+[0.0050, 0.0206]** and **+0.0234 AP [0.0088, 0.0380]**, using 95% whole-component
+bootstrap intervals. The frozen backbone, classifier and scaler remained
+unchanged, checkpoint reload checks passed, and the sampled promotion rule
+passed. Both learning-rate trials completed 512 updates on the same 16,384
+training variants. The sampled result stays separate from the completed
+full-validation benchmark below. The reported exploration duration
+excludes inherited feature extraction, earlier searches and full confirmation.
+
+- `q13/` and `q14/` each contain a frozen `protocol.json`, input checks,
+  parent/checkpoint hashes and an exact `source_snapshot/` of the implementation.
+- `heads.pt` and `head_results.json` record the training-only scaler and head.
+  Q13 retains every regularization candidate, its actual convergence status and
+  FP64-to-FP32 deployment checks. Q14 loads the strongest completed frozen
+  control and verifies unchanged classifier weights and scaling throughout.
+- Each learning-rate directory retains `best_lora.pt`, `best_control.pt`,
+  `last_checkpoint.pt` and `history.json`. Checkpoints include adapter tensors,
+  heads, scaler, optimizer masters, RNG and batch cursor. They are inspection
+  records; these runners archive and restart rather than resume interrupted runs.
+  Use the corresponding backend's `load_state` to verify the SHA-256-prefixed
+  `q13-controlled-v1` or `q14-controlled-v1` tensor payload.
+- `training_history.json`, `validation_predictions.csv` and `metrics.json`
+  retain both matched and strongest frozen controls, sampled component-bootstrap
+  intervals, the promotion decision and numerical integrity checks.
+- `run_status.json` binds a successful fresh-kernel execution to the saved
+  notebook checksum and measured duration. Real failures, partial notebooks,
+  logs and prior sources remain in `archive/`; outputs are never fabricated or
+  substituted for executing a notebook.
+
+Sampled exploration does not publish benchmark rows. A promoted adapter can
+undergo a separate, unfitted confirmation with
+`.venv/bin/python -m notebooks.src.refresh_lora_validation --question q13`
+(or `q14`). This executes all 17,927 validation variants for LoRA and its frozen
+controls, reproduces the original selection predictions and reloads the saved
+models. It reports the full cohort, variants outside the selection sample and
+components absent from that sample. These remain development results.
+
+Only after saving the fully executed validation notebook does the runner export
+both LoRA and its strongest frozen control and refresh the README. Both source
+notebooks, full predictions, parent checkpoint and completion records are
+checksum-bound. A failed statistical confirmation remains a reportable completed
+result; sampled or incomplete results cannot enter the full-cohort comparison.
+Runtime separates current exploration and full confirmation from inherited
+feature extraction, head fitting and earlier searches. The one-hour target
+applies to each exploration, with full confirmation timed separately.
+
+[The completed Q14 full-validation notebook](../Q14-lora-validation.ipynb)
+took **34.7 minutes** and passed the prespecified confirmation rule on **17,927
+variants**. LoRA scored **0.852 AUROC / 0.770 AP** versus **0.839 / 0.749** for the
+strongest frozen classifier, inherited from Q12. Paired gains were **+0.0131 AUROC
+[0.0080, 0.0180]** and **+0.0206 AP [0.0123, 0.0287]**. Gains also held outside
+the 2,048-variant selection sample. On the 3,246 variants in components absent
+from selection, the AUROC and AP gain intervals included zero; this remains
+development validation, not an untouched test. Both full-cohort models are
+published in the README comparison with verified notebook and artifact evidence.
+
+`q14/full/` retains the frozen confirmation protocol, exact selection membership,
+full predictions, subset metrics, paired intervals, checkpoint provenance and
+fresh reload checks. The saved notebook reproduces all 2,048 original selection
+predictions and passes both 64-variant checkpoint reloads. Exploration plus
+full confirmation took **77.7 minutes**; inherited feature extraction, head
+fitting and earlier searches are additional. Only the 43.0-minute exploration
+was subject to the one-hour budget.
+
+Q15 contingency implementation passed CPU tests; GPU training and replay
+equivalence remain unverified. No Q15 experiment has run, and no completed
+Q15 notebook or benchmark result is claimed.
 
 ## Archived three-way experiment
 

@@ -268,6 +268,356 @@ class ComparisonTests(unittest.TestCase):
         self.assertNotIn('Q12', result['errors'])
         self.assertTrue(any(row.get('metrics') for row in result['methods'] if row['question'] == 'Q12'))
 
+    def full_lora_export(self, question='q13', confirmed=False, publish_context=True):
+        """Build small real files and exercise the exporter without model execution."""
+        from types import SimpleNamespace
+        from notebooks.src import lora_validation
+
+        directory = self.publish_full_cohort() if publish_context else self.results / 'q1/full'
+        context = c.load_context(self.root)
+        parent = self.results / question
+        full = parent / 'full'
+        full.mkdir(parents=True, exist_ok=True)
+        parent_protocol = self.dump(f'notebooks/results/{question}/protocol.json', {'fixture': question})
+        parent_metrics = self.dump(f'notebooks/results/{question}/metrics.json', {
+            'identity': question + '-parent', 'status': 'complete', 'scope': 'sampled_validation',
+            'promotion_passed': True, 'selected_model': 'lora'})
+        parent_notebook = self.root / 'notebooks' / c.LORA_EXPLORATION_NOTEBOOKS[question]
+        parent_cell = nbformat.v4.new_code_cell('show_results()', execution_count=1, outputs=[
+            nbformat.v4.new_output('display_data', data={
+                'text/html': '<pre>' + c.html.escape(json.dumps(c.read_json(parent_metrics))) + '</pre>'})])
+        nbformat.write(nbformat.v4.new_notebook(cells=[parent_cell]), parent_notebook)
+        self.dump(f'notebooks/results/{question}/run_status.json', {
+            'status': 'complete', 'notebook_sha256': c.digest(parent_notebook), 'notebook_execution_seconds': 50.})
+        selected = parent / 'selected_model.pt'
+        selected.write_bytes(b'fixture selected model')
+        source = self.root / 'notebooks/src/full_validation_fixture.py'
+        source.write_text('# checksum-bound fixture implementation\n')
+        sources = {str(source.relative_to(self.root)): c.digest(source)}
+        frame = context['validation'].assign(lora=[.1, .9, .2, .8], matched_control=[.1, .8, .7, .6],
+                                              strongest_control=[.1, .8, .7, .6])
+        frame.to_csv(full / 'validation_predictions.csv', index=False)
+        protocol = {'question': question, 'sources': sources,
+            'q1_protocol_sha256': context['protocol_sha256'], 'vcf_exports': context['vcf_exports'],
+            'parent_identity': question + '-parent', 'parent_metrics_sha256': c.digest(parent_metrics),
+            'parent_selected_model_sha256': c.digest(selected), 'parent_protocol_sha256': c.digest(parent_protocol)}
+        self.dump(f'notebooks/results/{question}/full/protocol.json', protocol)
+        identity = c.hashlib.sha256(json.dumps(protocol, sort_keys=True, allow_nan=False).encode()).hexdigest()
+        measured = c.summarize(frame.label.to_numpy(), {name: frame[name].to_numpy() for name in
+                              ['lora', 'matched_control', 'strongest_control']}, frame.component.to_numpy(), 10)
+        completion = {'identity': identity, 'status': 'complete', 'scope': 'full_validation',
+            'validation_variants': 4, 'reload_verified': True, 'frozen_unchanged': True,
+            'original_selection_scores_reproduced': True, 'confirmation_passed': confirmed, 'seconds': 10.,
+            'metrics': {name: record['metrics'] for name, record in measured.items()},
+            'artifacts': {'validation_predictions.csv': c.digest(full / 'validation_predictions.csv')}}
+        self.dump(f'notebooks/results/{question}/full/metrics.json', completion)
+        notebook_path = self.root / 'notebooks' / c.NOTEBOOKS[question.upper()]
+        cell = nbformat.v4.new_code_cell('show_results()', execution_count=1, outputs=[
+            nbformat.v4.new_output('display_data', data={
+                'text/html': '<pre>' + c.html.escape(json.dumps(completion)) + '</pre>'})])
+        nbformat.write(nbformat.v4.new_notebook(cells=[cell]), notebook_path)
+        self.dump(f'notebooks/results/{question}/full/run_status.json', {
+            'status': 'complete', 'question': question, 'notebook_sha256': c.digest(notebook_path),
+            'notebook_execution_seconds': 10.})
+        with patch.object(lora_validation, 'ROOT', self.root), \
+                patch.object(lora_validation, 'parent', return_value=SimpleNamespace(OUTPUT=parent)), \
+                patch.object(lora_validation, 'output', return_value=full), \
+                patch.object(lora_validation, 'verified_results', return_value=completion):
+            spec = lora_validation.export_full_comparison(question)
+        return parent, spec, completion
+
+    def test_q13_q14_q15_completed_full_exports_publish_both_models_even_on_negative_confirmation(self):
+        for question, confirmed in [('q13', False), ('q14', True), ('q15', False)]:
+            self.full_lora_export(question, confirmed, publish_context=question == 'q13')
+        result = c.collect(self.root, repetitions=10)
+        self.assertFalse(result['errors'])
+        for question in ['q13', 'q14', 'q15']:
+            rows = [row for row in result['methods'] if row['question'] == question.upper()]
+            self.assertEqual({row['id'] for row in rows}, {f'{question}:lora', f'{question}:strongest_control'})
+            self.assertTrue(all(row['covered'] == row['total'] == 4 and row.get('metrics') for row in rows))
+            self.assertTrue(all(row['runtime_seconds'] == 60. for row in rows))
+            self.assertTrue(all('one-hour target applies only to exploration' in row['runtime_scope'] for row in rows))
+            self.assertEqual(result['common'][f'{question}:lora']['total'], 4)
+        negative = next(row for row in result['methods'] if row['id'] == 'q13:lora')
+        self.assertIn('confirmation rule not met', negative['note'])
+        rendered = c.render(result, self.root)
+        self.assertIn('(notebooks/Q13-lora-validation.ipynb)', rendered)
+        self.assertIn('(notebooks/Q14-lora-validation.ipynb)', rendered)
+        self.assertIn('(notebooks/Q15-lora-validation.ipynb)', rendered)
+
+    def test_lora_full_export_rejects_sampled_stale_and_incomplete_contracts(self):
+        parent, spec, _ = self.full_lora_export()
+        variants = [('sampled', {'scope': 'sampled_validation'}), ('partial', {'require_complete': False}),
+                    ('old_cohort', {'q1_protocol_sha256': 'stale'}), ('old_vcf', {'vcf_exports': {}}),
+                    ('missing_evidence', {'artifacts': {}}), ('wrong_identity', {'full_identity': 'stale'}),
+                    ('missing_model', {'methods': {'lora': spec['methods']['lora']}})]
+        for name, change in variants:
+            with self.subTest(change=name):
+                self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec | change)
+                result = c.collect(self.root, repetitions=10)
+                self.assertIn('Q13', result['errors'])
+                self.assertFalse(any(row.get('metrics') for row in result['methods'] if row['question'] == 'Q13'))
+
+    def test_lora_full_export_requires_all_completion_and_notebook_checks(self):
+        parent, spec, completion = self.full_lora_export()
+        original = json.loads(json.dumps(spec))
+        for key, value in [('status', 'running'), ('scope', 'sampled_validation'), ('validation_variants', 3),
+                           ('reload_verified', False), ('frozen_unchanged', False),
+                           ('original_selection_scores_reproduced', False)]:
+            with self.subTest(field=key):
+                changed = self.dump(str((parent / 'full/metrics.json').relative_to(self.root)), completion | {key: value})
+                spec = json.loads(json.dumps(original))
+                spec['artifacts']['full/metrics.json'] = c.digest(changed)
+                self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec)
+                result = c.collect(self.root, repetitions=10)
+                self.assertIn('incomplete or failed integrity', result['errors']['Q13'])
+        self.dump(str((parent / 'full/metrics.json').relative_to(self.root)), completion)
+        path = self.root / original['notebook']['path']
+        notebook = nbformat.read(path, as_version=4)
+        for change in ['unexecuted', 'error', 'different_result']:
+            with self.subTest(notebook=change):
+                changed = json.loads(json.dumps(notebook))
+                if change == 'unexecuted':
+                    changed['cells'][0]['execution_count'] = None
+                elif change == 'error':
+                    changed['cells'][0]['outputs'].append({'output_type': 'error', 'ename': 'Error', 'evalue': 'failure', 'traceback': []})
+                else:
+                    changed['cells'][0]['outputs'][0]['data']['text/html'] = '<pre>{"different": true}</pre>'
+                path.write_text(json.dumps(changed))
+                spec = json.loads(json.dumps(original))
+                spec['notebook']['sha256'] = c.digest(path)
+                status = self.dump(str((parent / 'full/run_status.json').relative_to(self.root)), {
+                    'status': 'complete', 'question': 'q13', 'notebook_sha256': c.digest(path),
+                    'notebook_execution_seconds': 10.})
+                spec['artifacts']['full/run_status.json'] = c.digest(status)
+                self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec)
+                result = c.collect(self.root, repetitions=10)
+                self.assertIn('notebook', result['errors']['Q13'])
+
+    def test_lora_full_export_rejects_prediction_replacement_and_stale_parent_checkpoint(self):
+        parent, spec, _ = self.full_lora_export()
+        predictions = parent / 'comparison_predictions.csv'
+        frame = pd.read_csv(predictions)
+        frame.loc[0, 'lora'] = .99
+        frame.to_csv(predictions, index=False)
+        changed = spec | {'predictions_sha256': c.digest(predictions)}
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), changed)
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('differ from completed full predictions', result['errors']['Q13'])
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec)
+        checkpoint = parent / 'selected_model.pt'
+        checkpoint.write_bytes(b'replacement model')
+        spec['artifacts']['selected_model.pt'] = c.digest(checkpoint)
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec)
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('promoted parent checkpoint', result['errors']['Q13'])
+
+    def test_lora_exporter_requires_saved_execution_and_matching_result_outputs(self):
+        from types import SimpleNamespace
+        from notebooks.src import lora_validation
+        parent, spec, completion = self.full_lora_export()
+        notebook = self.root / spec['notebook']['path']
+        notebook.unlink()
+        with patch.object(lora_validation, 'ROOT', self.root), \
+                patch.object(lora_validation, 'parent', return_value=SimpleNamespace(OUTPUT=parent)), \
+                patch.object(lora_validation, 'output', return_value=parent / 'full'), \
+                patch.object(lora_validation, 'verified_results', return_value=completion):
+            with self.assertRaises(FileNotFoundError):
+                lora_validation.export_full_comparison('q13')
+
+    def test_lora_full_export_preserves_published_competitor_and_shared_subset_results(self):
+        published = self.published_fixture()
+        self.full_lora_export(publish_context=False)
+        result = c.collect(self.root, repetitions=10)
+        rows = {row['id']: row for row in result['methods']}
+        self.assertEqual(rows['q8:AlphaMissense']['metrics'], published['methods'][0]['metrics'])
+        self.assertEqual(rows['q8:AlphaMissense']['status'], 'Published')
+        self.assertEqual(result['published_common'], published['published_common'])
+        self.assertIn('metrics', rows['q13:lora'])
+        text = c.render(result, self.root)
+        self.assertIn('Published comparison on 4 shared variants (Q2/Q8; excludes LoRA)', text)
+
+    def test_full_lora_publisher_preserves_competitors_and_survives_missing_caches(self):
+        prior = self.published_fixture()
+        expected = {}
+        for question, confirmed in [('q13', False), ('q14', True), ('q15', False)]:
+            parent, spec, completion = self.full_lora_export(question, confirmed, publish_context=False)
+            records = c.publish_full_lora(question, self.root)
+            expected.update({record['id']: record for record in records})
+            self.assertEqual({record['id'] for record in records},
+                             {f'{question}:lora', f'{question}:strongest_control'})
+            self.assertTrue(all(record['runtime_seconds'] == 60. for record in records))
+            for entry, source in zip(records[0]['runtime_status_evidence'],
+                                     [parent / 'run_status.json', parent / 'full/run_status.json']):
+                self.assertEqual((self.root / entry['path']).read_bytes(), source.read_bytes())
+                self.assertIn(entry['sha256'][:12], entry['path'])
+                self.assertIn(entry['path'], c.source_signature(self.root))
+            for record in records:
+                branch = record['id'].split(':')[1]
+                self.assertEqual(record['evidence']['metrics_path'], ['metrics', branch])
+                self.assertEqual(record['evidence']['count_path'], ['validation_variants'])
+                self.assertEqual(record['metrics'], completion['metrics'][branch])
+                self.assertEqual(record['note'], spec['limitations'])
+            # Remove every local export/full-result cache; parent exploration
+            # files alone must not prevent these completed full rows surviving.
+            for name in records[0]['local_artifacts']:
+                (self.root / name).unlink(missing_ok=True)
+        saved = c.read_json(self.root / c.PUBLISHED)
+        self.assertEqual(saved['methods'][:len(prior['methods'])], prior['methods'])
+        for key, value in prior.items():
+            if key not in ['methods', 'notebook_sha256']:
+                self.assertEqual(saved[key], value)
+        for path, checksum in prior['notebook_sha256'].items():
+            self.assertEqual(saved['notebook_sha256'][path], checksum)
+        for _ in range(2):
+            result = c.collect(self.root, repetitions=10)
+            self.assertFalse(result['errors'])
+            rows = {row['id']: row for row in result['methods']}
+            for identifier, record in expected.items():
+                self.assertEqual(rows[identifier]['status'], 'Published')
+                self.assertEqual(rows[identifier]['metrics'], record['metrics'])
+                self.assertEqual(rows[identifier]['runtime_seconds'], 60.)
+            self.assertIn('confirmation rule not met', rows['q13:lora']['note'])
+            self.assertEqual(result['published_common'], prior['published_common'])
+        # The fully portable path also works without generated Q1 protocols.
+        (self.results / 'q1/protocol.json').unlink()
+        (self.results / 'q1/full/protocol.json').unlink()
+        result = c.collect(self.root, repetitions=10)
+        self.assertTrue(set(expected) <= set(result['published_methods']))
+        self.assertEqual(result['cohort']['validation_variants'], 4)
+
+    def test_full_lora_publisher_validates_before_changing_any_published_files(self):
+        self.published_fixture()
+        parent, spec, _ = self.full_lora_export(publish_context=False)
+        original = (self.root / c.PUBLISHED).read_bytes()
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)),
+                  spec | {'scope': 'sampled_validation'})
+        with self.assertRaisesRegex(ValueError, 'sampled exploration'):
+            c.publish_full_lora('q13', self.root)
+        self.assertEqual((self.root / c.PUBLISHED).read_bytes(), original)
+        self.assertFalse(list((self.root / c.PUBLISHED.parent).glob('*-status-*.json')))
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec)
+        self.source_notebook.write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'competitor evidence'):
+            c.publish_full_lora('q13', self.root)
+        self.assertEqual((self.root / c.PUBLISHED).read_bytes(), original)
+        self.assertFalse(list((self.root / c.PUBLISHED.parent).glob('*-status-*.json')))
+
+    def test_published_full_lora_cannot_mask_partial_local_results(self):
+        self.published_fixture()
+        parent, _, _ = self.full_lora_export(publish_context=False)
+        records = c.publish_full_lora('q13', self.root)
+        for name in records[0]['local_artifacts']:
+            (self.root / name).unlink(missing_ok=True)
+        for relative in ['full/metrics.json', 'full/run_status.json', 'comparison_predictions.csv',
+                         'comparison_results.json']:
+            with self.subTest(relative=relative):
+                path = parent / relative
+                path.write_text('{}')
+                result = c.collect(self.root, repetitions=10)
+                self.assertFalse(any(row.get('metrics') for row in result['methods']
+                                     if row['question'] == 'Q13'))
+                self.assertNotIn('q13:lora', result.get('published_methods', []))
+                path.unlink()
+
+    def test_published_full_lora_rejects_corrupt_status_and_wrong_duration_or_notebook(self):
+        self.published_fixture()
+        self.full_lora_export(publish_context=False)
+        records = c.publish_full_lora('q13', self.root)
+        saved = c.read_json(self.root / c.PUBLISHED)
+        entry = records[0]['runtime_status_evidence'][0]
+        path = self.root / entry['path']
+        original = path.read_bytes()
+        path.write_bytes(original + b' ')
+        result = c.published_results(self.root)
+        self.assertIn('Checksum mismatch', result['errors']['q13:lora'])
+        for change in [{'status': 'running'}, {'notebook_sha256': 'different'},
+                       {'notebook_execution_seconds': 51.}, {'notebook_execution_seconds': -1.},
+                       {'notebook_execution_seconds': True}]:
+            with self.subTest(change=change):
+                path.write_text(json.dumps(json.loads(original) | change))
+                updated = json.loads(json.dumps(saved))
+                for row in updated['methods']:
+                    if row['question'] == 'Q13':
+                        row['runtime_status_evidence'][0]['sha256'] = c.digest(path)
+                self.dump(c.PUBLISHED, updated)
+                result = c.published_results(self.root)
+                self.assertIn('q13:lora', result['errors'])
+                self.assertIn('q13:strongest_control', result['errors'])
+                self.assertIn('q8:AlphaMissense', result['methods'])
+        path.write_bytes(original)
+        self.dump(c.PUBLISHED, saved)
+        notebook_path = self.root / entry['notebook']
+        notebook_path.write_text('{}')
+        result = c.published_results(self.root)
+        self.assertIn('Checksum mismatch', result['errors']['q13:lora'])
+        # Even updating the checksum cannot make an unexecuted source eligible.
+        notebook = nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell('show_results()')])
+        nbformat.write(notebook, notebook_path)
+        saved['notebook_sha256'][entry['notebook']] = c.digest(notebook_path)
+        self.dump(c.PUBLISHED, saved)
+        result = c.published_results(self.root)
+        self.assertIn('not completely executed', result['errors']['q13:lora'])
+
+    def test_full_lora_rerun_replaces_only_its_two_rows_and_keeps_old_status_bytes(self):
+        prior = self.published_fixture()
+        self.full_lora_export(confirmed=False, publish_context=False)
+        records = c.publish_full_lora('q13', self.root)
+        old_statuses = {entry['path']: (self.root / entry['path']).read_bytes()
+                        for entry in records[0]['runtime_status_evidence']}
+        self.full_lora_export(confirmed=True, publish_context=False)
+        self.assertEqual(set(c.published_results(self.root)['errors']),
+                         {'q13:lora', 'q13:strongest_control'})
+        records = c.publish_full_lora('q13', self.root)
+        saved = c.read_json(self.root / c.PUBLISHED)
+        self.assertEqual(len(saved['methods']), len(prior['methods']) + 2)
+        self.assertEqual(saved['methods'][:len(prior['methods'])], prior['methods'])
+        self.assertEqual(saved['published_common'], prior['published_common'])
+        self.assertIn('confirmation rule met.', records[0]['note'])
+        for relative, payload in old_statuses.items():
+            self.assertEqual((self.root / relative).read_bytes(), payload)
+        self.assertFalse(c.published_results(self.root)['errors'])
+
+    def test_lora_full_export_rejects_stale_exploration_notebook_or_runtime(self):
+        parent, spec, _ = self.full_lora_export()
+        bad = json.loads(json.dumps(spec))
+        bad['runtime_stages']['exploration_seconds'] = 0.
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), bad)
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('runtime stages', result['errors']['Q13'])
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec)
+        notebook = self.root / spec['exploration_notebook']['path']
+        notebook.write_text('{}')
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('Checksum mismatch', result['errors']['Q13'])
+
+    def test_q15_cannot_export_sampled_or_incomplete_results_as_full_validation(self):
+        parent, spec, completion = self.full_lora_export('q15')
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec | {'scope': 'sampled_validation'})
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('sampled exploration', result['errors']['Q15'])
+        bad = self.dump(str((parent / 'full/metrics.json').relative_to(self.root)), completion | {'reload_verified': False})
+        spec['artifacts']['full/metrics.json'] = c.digest(bad)
+        self.dump(str((parent / 'comparison_results.json').relative_to(self.root)), spec)
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('integrity checks', result['errors']['Q15'])
+        self.assertFalse(any(row.get('metrics') for row in result['methods'] if row['question'] == 'Q15'))
+
+    def test_published_runtime_json_changes_and_deletions_change_source_signature(self):
+        self.published_fixture()
+        parent, _, _ = self.full_lora_export('q15', publish_context=False)
+        records = c.publish_full_lora('q15', self.root)
+        evidence = records[0]['runtime_status_evidence'][0]
+        path = self.root / evidence['path']
+        before = c.source_signature(self.root)
+        self.assertIn(evidence['path'], before)
+        path.write_text(path.read_text() + '\n')
+        corrupted = c.source_signature(self.root)
+        self.assertNotEqual(before, corrupted)
+        path.unlink()
+        removed = c.source_signature(self.root)
+        self.assertNotEqual(corrupted, removed)
+
     def test_missing_full_protocol_cannot_fall_back_to_pilot(self):
         self.q8()
         directory = self.publish_full_cohort()
@@ -386,7 +736,7 @@ class ComparisonTests(unittest.TestCase):
 
     def test_shared_subset_is_recomputed_not_copied(self):
         self.export(scores=[.1, .9, .8, .2])
-        self.export('q13', scores=[.2, .8, np.nan, np.nan])
+        self.export('q16', scores=[.2, .8, np.nan, np.nan])
         result = c.collect(self.root, repetitions=10)
         row = next(row for row in result['methods'] if row['id'] == 'q10:score')
         self.assertEqual(row['metrics']['auroc']['value'], .75)
@@ -504,7 +854,7 @@ class ComparisonTests(unittest.TestCase):
 
     def test_single_class_shared_subset_is_not_ranked(self):
         self.export(scores=[.1, .9, np.nan, np.nan])
-        self.export('q13', scores=[.2, np.nan, np.nan, .8])
+        self.export('q16', scores=[.2, np.nan, np.nan, .8])
         result = c.collect(self.root, repetitions=10)
         self.assertFalse(result['common'])
         self.assertIn('Common subset', result['errors'])
