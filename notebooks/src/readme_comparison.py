@@ -79,9 +79,14 @@ def collect(root=ROOT, repetitions=c.REPETITIONS):
 
 def render(result, root=ROOT):
     root = Path(root)
+    def order(row):
+        if row['question'] == 'Q8':
+            return (1, row['id'] == 'q8:PrimateAI-3D')
+        metric = (row.get('metrics') or {}).get('auroc') or {}
+        return (0, metric.get('value', float('inf')))
+
     rows = sorted((row for row in result['methods'] if row['id'] not in c.README_EXCLUDED_METHODS),
-                  key=lambda row: (row['id'] != Q16_ID, row['question'] == 'Q8',
-                                   row['id'] == 'q8:PrimateAI-3D'))
+                  key=order)
     table, notes = [], []
     for row in rows:
         relative = row.get('notebook', 'notebooks/' + c.NOTEBOOKS.get(row['question'], ''))
@@ -111,6 +116,7 @@ def render(result, root=ROOT):
                                                'published_bootstrap', 'generated_utc']}
     return '\n\n'.join([
         '## Method comparison', intro,
+        'Project models are ordered by AUROC, lowest to highest.',
         c.markdown_table(table, separator_before=sum(row['question'] != 'Q8' for row in rows)),
         'Coverage differs among tools: each AUROC and average precision uses the scored variants shown. '
         'These rows do not establish a ranking on identical variants. “—” indicates an unavailable result or timing.',

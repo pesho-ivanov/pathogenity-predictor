@@ -48,7 +48,9 @@ class ReadmeComparisonTests(unittest.TestCase):
     def q16_row(self, result):
         return next(row for row in result['methods'] if row['id'] == presentation.Q16_ID)
 
-    def test_verified_q16_is_first_and_all_previous_rows_keep_exact_measurements(self):
+    def test_project_models_sort_by_auroc_and_previous_rows_keep_exact_measurements(self):
+        for row, auroc in zip(self.base['methods'], [.69, .85, .84, .83]):
+            row['metrics']['auroc']['value'] = auroc
         result = presentation.collect(self.root, repetitions=10)
         self.assertEqual(result['methods'][0]['id'], presentation.Q16_ID)
         self.assertEqual(result['methods'][1:], self.base['methods'])
@@ -59,7 +61,13 @@ class ReadmeComparisonTests(unittest.TestCase):
         self.assertEqual(row['runtime_seconds'], 1200.)
         section = presentation.render(result, self.root)
         table = next(presentation.TABLE.finditer(section)).group()
-        self.assertTrue(table.splitlines()[2].startswith('| Evo2 7B Q16 continued LoRA'))
+        names = [line.split('|')[1].strip() for line in table.splitlines()[2:]]
+        self.assertEqual(names[:4], ['Previous Q11 LoRA', 'Evo2 7B zero-shot',
+                                    'Previous Q14 frozen control', 'Previous Q14 LoRA'])
+        self.assertTrue(names[4].startswith('Evo2 7B Q16 continued LoRA'))
+        self.assertEqual(names[5], '<hr>')
+        self.assertEqual([name.split(']')[0].lstrip('[') for name in names[6:]],
+                         ['SIFT4G', 'PolyPhen-2', 'REVEL', 'AlphaMissense', 'EVE', 'PrimateAI-3D (licensed)'])
         self.assertNotIn('| Paper |', table)
         self.assertIn('| [REVEL](https://doi.org/10.1016/j.ajhg.2016.08.016) |', table)
         for old in self.base['methods']:
