@@ -864,8 +864,8 @@ class ComparisonTests(unittest.TestCase):
         self.export()
         readme = self.root / 'README.md'
         readme.write_text('# Project\n\nIntroduction.\n\n## Research questions\n\nKeep these notes.\n')
-        original = c.refresh
-        with patch.object(c, 'refresh', side_effect=lambda root: original(root, repetitions=10)):
+        original = watch.readme_comparison.refresh
+        with patch.object(watch.readme_comparison, 'refresh', side_effect=lambda root: original(root, repetitions=10)):
             worker = threading.Thread(target=watch.watch, args=(self.root, .03), daemon=True)
             worker.start()
             try:

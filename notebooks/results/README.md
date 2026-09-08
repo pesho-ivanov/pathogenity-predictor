@@ -5,11 +5,12 @@ Q1's shared VCF partitions belong in the project-root [data/](../../data/) direc
 
 ## Comparison exports
 
-The root [README comparison](../../README.md#method-comparison) aggregates Q2, Q8, Q9, Q10 and Q11 and
-lists unevaluated Q8 competitors. It recomputes AUROC and average precision from
+The root [README comparison](../../README.md#method-comparison) presents Q2, Q8,
+Q11, Q14 and Q16 in one table, including unevaluated Q8 competitors.
+It recomputes AUROC and average precision from
 verified validation predictions, with 1,000 component-bootstrap replicates and
-seed 42. Each method's own coverage is shown; direct comparisons use the intersection
-of scored variants. Invalid/stale inputs, missing results and blocked experiments
+seed 42. Each method's own coverage is shown; shared-variant analyses remain in
+the notebooks and preserved result records. Invalid/stale inputs, missing results and blocked experiments
 are explained in the expandable details. Archived broad-SNV and September pilot
 results never enter the current July full-cohort comparison.
 
@@ -32,7 +33,8 @@ measurements.
 `comparison/published/prior-readme.md` preserves the source for previously
 published Q2/Q8 shared-subset results and rounded timings. Without the original
 per-variant exports, that subset cannot be extended to LoRA. The README labels
-the retained shared comparison separately and reports LoRA on full validation.
+the methods' individual coverage and links to the preserved shared comparison;
+LoRA is reported on full validation.
 Notebook edits invalidate a retained record until its evidence is reverified;
 this mechanism preserves completed measurements without executing notebooks or
 inventing missing predictions.
@@ -41,9 +43,10 @@ inventing missing predictions.
 the README section. The summary records source hashes, Q1 identity, coverage, metrics,
 intervals and source errors. `watch_status.json` and `watch.log` report the local
 refresh service. Notebook saves and relevant result-file changes trigger an atomic
-refresh after a short quiet period. Only the section between `<!-- comparison:start -->`
-and `<!-- comparison:end -->` is replaced; surrounding README edits are preserved.
-The README presents evaluation tables without a chart of methods on the Y-axis.
+refresh after a short quiet period. The formatter updates the marked main comparison
+and Q16 summary, and removes secondary AUROC/AP tables. Data, labels, methods,
+settings and surrounding prose are preserved. The README presents one performance
+table without a chart of methods on the Y-axis.
 The runtime column uses recorded timings only for methods whose cohort and result
 checks pass. Its measured stages appear in the expandable details; missing,
 invalid or historical timings appear as `—`. Durations use seconds, minutes or
@@ -55,6 +58,12 @@ excluded where stated; hardware, downloads and cache reuse differ across workflo
 Commit and push the README to publish updates.
 Source notebooks are never executed by the watcher; editing displayed numbers or
 prose does not change the underlying predictions.
+Use `.venv/bin/python -m notebooks.src.readme_comparison` for a one-time refresh
+that verifies Q16 alongside the earlier results. The presentation code is separate
+from the checksum-pinned experiment implementations; it does not modify their
+notebooks, source hashes or published evidence. Historical experiment runners may
+write the older layout; run this formatter after publishing their results.
+
 Use `.venv/bin/python -m notebooks.src.comparison_watch --start` from the repository
 root to enable refresh for the workspace session. Use `--stop` to stop it, or omit
 both flags for a one-time refresh. Restart the watcher after a workspace restart.
@@ -580,7 +589,7 @@ The uncompressed September `data/clinvar.vcf` is removed after the July rebuild.
 
 `publication_status.json`, written after publication, records the actual end-to-end completion or publication failure against the original deadline. It is separate from the hash-bound notebook completion status and is not inserted into the earlier result artifact registry.
 
-`comparison/published/q16-results.json` retains the full result and displayed provenance with a checksum-pinned executed notebook and byte-for-byte copy of its measured run status. Run `python -m notebooks.src.q16_report` to verify that evidence and refresh only Q16’s marked README sections. A partial or corrupt local Q16 result is an error, never a fallback to cached numbers. The original comparison registry and its earlier method rows are unchanged.
+`comparison/published/q16-results.json` retains the full result and displayed provenance with a checksum-pinned executed notebook and byte-for-byte copy of its measured run status. Run `.venv/bin/python -m notebooks.src.readme_comparison` to verify the evidence and include Q16 in the main table. A partial or corrupt local Q16 result is shown as unavailable, never as cached numbers. The frozen experiment publisher is retained to reproduce the original run; current README formatting lives in `src/readme_comparison.py`.
 
 The 2,048-variant sample selects checkpoints; full validation reports the frozen selection. The full partition and its subsets have been evaluated before and are development data, not an untouched test set. Component-bootstrap intervals do not correct repeated selection or establish clinical validity. Pretraining, homology and external-data overlap remain unresolved. Single-variant BF16 scoring is numerically sensitive; Q16 uses its verified batch-32 workflow.
 <!-- q16-results:end -->

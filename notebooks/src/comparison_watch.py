@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-from . import comparison
+from . import comparison, readme_comparison
 
 
 def directory(root):
@@ -68,14 +68,14 @@ def watch(root=comparison.ROOT, interval=2):
         last = None
         while not (output / 'watch.stop').exists():
             try:
-                current = comparison.source_signature(root)
+                current = readme_comparison.source_signature(root)
                 if current != last:
                     # Debounce saves and multi-file exports. Incomplete/checksum-invalid
                     # inputs are shown as unavailable; never retain their old metrics.
                     time.sleep(interval)
-                    if current != comparison.source_signature(root):
+                    if current != readme_comparison.source_signature(root):
                         continue
-                    comparison.refresh(root)
+                    readme_comparison.refresh(root)
                     last = current
                     state.update(last_refresh_utc=datetime.now(timezone.utc).isoformat(), error=None)
                     print(f'{state["last_refresh_utc"]}: refreshed README comparison', flush=True)
@@ -105,7 +105,7 @@ def main():
         start(args.root)
         print('Automatic comparison refresh enabled. Logs: notebooks/results/comparison/watch.log')
     else:
-        comparison.refresh(args.root)
+        readme_comparison.refresh(args.root)
         print('Refreshed README comparison once. Use --start for automatic updates.')
 
 

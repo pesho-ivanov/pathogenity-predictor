@@ -44,12 +44,11 @@ Generated artifacts are described in [results documentation](notebooks/results/R
 <!-- comparison:start -->
 ## Method comparison
 
-Compare methods on Q1’s current frozen missense validation set. Only results matching its snapshot and complete cohort are included.
-
 **17,927 missense validation variants · ClinVar 2026-07-06 · full cohort**
 
 | Method | Notebook | Paper | Scored / validation | AUROC [95% CI] | Average precision [95% CI] | Runtime |
 | --- | --- | --- | --- | --- | --- | --- |
+| Evo2 7B Q16 continued LoRA (blocks 29 and 30, rank 8, 512 bp) | [Q16](notebooks/Q16-lora-continuation.ipynb) | — | 17,927 / 17,927 | 0.872 [0.859, 0.884] | 0.801 [0.769, 0.828] | 3.7 h |
 | Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) | [Q11](notebooks/Q11-evo2-lora.ipynb) | — | 17,927 / 17,927 | 0.693 [0.675, 0.711] | 0.487 [0.435, 0.536] | 42.6 min |
 | Evo2 7B Q14 LoRA (blocks 29 and 30, rank 8, 512 bp) | [Q14](notebooks/Q14-lora-validation.ipynb) | — | 17,927 / 17,927 | 0.852 [0.838, 0.865] | 0.770 [0.736, 0.797] | 1.3 h |
 | Evo2 7B Q14 strongest frozen classifier (magnitude features, 512 bp) | [Q14](notebooks/Q14-lora-validation.ipynb) | — | 17,927 / 17,927 | 0.839 [0.824, 0.852] | 0.749 [0.716, 0.778] | 1.3 h |
@@ -62,48 +61,34 @@ Compare methods on Q1’s current frozen missense validation set. Only results m
 | EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | 9,284 / 17,927 | 0.909 [0.889, 0.925] | 0.916 [0.889, 0.935] | 5.5 s |
 | PrimateAI-3D (licensed) | [Q8](notebooks/Q8-existing-tools.ipynb) | [Gao et al. (2023)](https://doi.org/10.1126/science.abn8197) | — | — | — | — |
 
-Runtime covers the recorded stages listed in the details below; hardware and caching differ between workflows. “—” means no verified timing is available for the current cohort.
+Coverage differs among tools: each AUROC and average precision uses the scored variants shown. These rows do not establish a ranking on identical variants. “—” indicates an unavailable result or timing.
 
-Completed notebook measurements are preserved when local prediction exports are absent. Their source notebooks and exact cohort checksums are verified; locally available predictions take precedence.
-
-**Direct comparison on the same variants**
-
-| Method | Shared variants | AUROC [95% CI] | Average precision [95% CI] |
-| --- | --- | --- | --- |
-| Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) (Q11) | 17927 | 0.693 [0.675, 0.711] | 0.487 [0.435, 0.536] |
-| Evo2 7B Q14 LoRA (blocks 29 and 30, rank 8, 512 bp) (Q14) | 17927 | 0.852 [0.838, 0.865] | 0.770 [0.736, 0.797] |
-| Evo2 7B Q14 strongest frozen classifier (magnitude features, 512 bp) (Q14) | 17927 | 0.839 [0.824, 0.852] | 0.749 [0.716, 0.778] |
-
-**Published comparison on 8,817 shared variants (Q2/Q8; excludes LoRA)**
-
-| Method | Shared variants | AUROC [95% CI] | Average precision [95% CI] |
-| --- | --- | --- | --- |
-| Evo2 7B base zero-shot (Vortex, FP8) (Q2) | 8817 | 0.815 [0.797, 0.832] | 0.824 [0.791, 0.855] |
-| <hr> | <hr> | <hr> | <hr> |
-| SIFT4G (Q8) | 8817 | 0.887 [0.872, 0.901] | 0.881 [0.853, 0.906] |
-| PolyPhen-2 (Q8) | 8817 | 0.900 [0.887, 0.913] | 0.903 [0.879, 0.925] |
-| REVEL (Q8) | 8817 | 0.972 [0.966, 0.978] | 0.976 [0.967, 0.984] |
-| AlphaMissense (Q8) | 8817 | 0.961 [0.953, 0.968] | 0.967 [0.957, 0.975] |
-| EVE (Q8) | 8817 | 0.911 [0.893, 0.928] | 0.921 [0.899, 0.940] |
-
-These shared-subset results come from the completed Q2/Q8 comparison. Computing LoRA on that subset requires the original per-variant exports.
+Runtime covers the recorded stages described below; hardware and caching differ. The Q16 row includes preparation through completion of its saved notebook. Sampled checkpoint-selection results and shared-variant analyses remain in the linked notebooks and [preserved comparison records](notebooks/results/comparison/published/results.json).
 
 <details>
 <summary>Provenance, missing results and limitations</summary>
 
-| Method | Details |
-| --- | --- |
-| Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) (Q11) | User-authorized partial-epoch training for a one-hour run; full frozen validation is retained. No fitted frozen baseline or improvement claim; these are development results. Pretraining sequence exposure, homology and shared-patient overlap remain unresolved. The final attention block is numerically inactive in this BF16 configuration; LoRA targets the preceding Hyena mixer. No clinical validity or independent final-test performance is established. Runtime: Fresh notebook start through input checks, cached setup verification, preflight, partial-epoch training, full validation, 64-variant reload check and bootstrap; excludes initial environment/model acquisition and final notebook/README export. |
-| Evo2 7B Q14 LoRA (blocks 29 and 30, rank 8, 512 bp) (Q14) | Prespecified full-validation confirmation rule met. Full frozen July missense development validation, following repeated selection on its 2,048-variant subset. Variants outside that subset and components absent from it were not used by those recent selection runs, but this repository has previously evaluated the full validation partition. Neither subset is an untouched final test set. Component-bootstrap intervals do not remove selection bias. Pretraining exposure, homology and shared-patient overlap remain unresolved; this research prototype has no clinical validation. Runtime: Current Q14 exploration (43.0 min, including all its search arms) plus separate full validation (34.7 min), shared by LoRA and controls. Excludes inherited Q12 feature extraction/fitting and earlier experiments or attempts. The one-hour target applies only to exploration. |
-| Evo2 7B Q14 strongest frozen classifier (magnitude features, 512 bp) (Q14) | Prespecified full-validation confirmation rule met. Full frozen July missense development validation, following repeated selection on its 2,048-variant subset. Variants outside that subset and components absent from it were not used by those recent selection runs, but this repository has previously evaluated the full validation partition. Neither subset is an untouched final test set. Component-bootstrap intervals do not remove selection bias. Pretraining exposure, homology and shared-patient overlap remain unresolved; this research prototype has no clinical validation. Runtime: Current Q14 exploration (43.0 min, including all its search arms) plus separate full validation (34.7 min), shared by LoRA and controls. Excludes inherited Q12 feature extraction/fitting and earlier experiments or attempts. The one-hour target applies only to exploration. |
-| Evo2 7B base zero-shot (Vortex, FP8) (Q2) | Zero-shot inference on the complete current full validation cohort. No parameters or thresholds fitted. Archived September results are not mixed with this run. Pretraining, homology and annotation overlap remain unresolved; validation is development data, not an untouched final test. Published executed-notebook result; per-variant export is absent locally. Runtime: Validation scoring batches summed across runs; excludes downloads, model loading and evaluation. Published rounded duration. |
-| <hr> | <hr> |
-| SIFT4G (Q8) | dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
-| PolyPhen-2 (Q8) | HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
-| REVEL (Q8) | HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training. |
-| AlphaMissense (Q8) | ClinVar calibration overlap unresolved; maximum matching transcript score. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training. |
-| EVE (Q8) | dbNSFP4.9a continuous EVE score; maximum across matches, no confidence-category filtering. Limited protein/position coverage. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training. |
-| PrimateAI-3D (Q8) | Requires licensed data; no predictions for the current cohort. |
+**Evo2 7B Q16 continued LoRA (blocks 29 and 30, rank 8, 512 bp) (Q16).** The 2,048-variant sample selects checkpoints; full validation reports the frozen selection. The full partition and its subsets have been evaluated before and are development data, not an untouched test set. Component-bootstrap intervals do not correct repeated selection or establish clinical validity. Pretraining, homology and external-data overlap remain unresolved. Single-variant BF16 scoring is numerically sensitive; Q16 uses its verified batch-32 workflow. Runtime: Original request through the saved notebook, including preparation, the failed preflight, training, all three full-validation passes, reload checks and confidence intervals. Excludes inherited Q12/Q14 fitting and initial model acquisition.
+
+**Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) (Q11).** User-authorized partial-epoch training for a one-hour run; full frozen validation is retained. No fitted frozen baseline or improvement claim; these are development results. Pretraining sequence exposure, homology and shared-patient overlap remain unresolved. The final attention block is numerically inactive in this BF16 configuration; LoRA targets the preceding Hyena mixer. No clinical validity or independent final-test performance is established. Runtime: Fresh notebook start through input checks, cached setup verification, preflight, partial-epoch training, full validation, 64-variant reload check and bootstrap; excludes initial environment/model acquisition and final notebook/README export.
+
+**Evo2 7B Q14 LoRA (blocks 29 and 30, rank 8, 512 bp) (Q14).** Prespecified full-validation confirmation rule met. Full frozen July missense development validation, following repeated selection on its 2,048-variant subset. Variants outside that subset and components absent from it were not used by those recent selection runs, but this repository has previously evaluated the full validation partition. Neither subset is an untouched final test set. Component-bootstrap intervals do not remove selection bias. Pretraining exposure, homology and shared-patient overlap remain unresolved; this research prototype has no clinical validation. Runtime: Current Q14 exploration (43.0 min, including all its search arms) plus separate full validation (34.7 min), shared by LoRA and controls. Excludes inherited Q12 feature extraction/fitting and earlier experiments or attempts. The one-hour target applies only to exploration.
+
+**Evo2 7B Q14 strongest frozen classifier (magnitude features, 512 bp) (Q14).** Prespecified full-validation confirmation rule met. Full frozen July missense development validation, following repeated selection on its 2,048-variant subset. Variants outside that subset and components absent from it were not used by those recent selection runs, but this repository has previously evaluated the full validation partition. Neither subset is an untouched final test set. Component-bootstrap intervals do not remove selection bias. Pretraining exposure, homology and shared-patient overlap remain unresolved; this research prototype has no clinical validation. Runtime: Current Q14 exploration (43.0 min, including all its search arms) plus separate full validation (34.7 min), shared by LoRA and controls. Excludes inherited Q12 feature extraction/fitting and earlier experiments or attempts. The one-hour target applies only to exploration.
+
+**Evo2 7B base zero-shot (Vortex, FP8) (Q2).** Zero-shot inference on the complete current full validation cohort. No parameters or thresholds fitted. Archived September results are not mixed with this run. Pretraining, homology and annotation overlap remain unresolved; validation is development data, not an untouched final test. Published executed-notebook result; per-variant export is absent locally. Runtime: Validation scoring batches summed across runs; excludes downloads, model loading and evaluation. Published rounded duration.
+
+**SIFT4G (Q8).** dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training.
+
+**PolyPhen-2 (Q8).** HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training.
+
+**REVEL (Q8).** HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training.
+
+**AlphaMissense (Q8).** ClinVar calibration overlap unresolved; maximum matching transcript score. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training.
+
+**EVE (Q8).** dbNSFP4.9a continuous EVE score; maximum across matches, no confidence-category filtering. Limited protein/position coverage. Published executed-notebook result; per-variant export is absent locally. Runtime: CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training.
+
+**PrimateAI-3D (licensed) (Q8).** Requires licensed data; no predictions for the current cohort.
 
 ```json
 {
@@ -117,7 +102,7 @@ These shared-subset results come from the completed Q2/Q8 comparison. Computing 
     "clinvar_date": "2026-07-06",
     "scope": "full"
   },
-  "source_errors": {},
+  "errors": {},
   "bootstrap": {
     "repetitions": 1000,
     "seed": 42
@@ -134,15 +119,13 @@ These shared-subset results come from the completed Q2/Q8 comparison. Computing 
     "repetitions": 1000,
     "seed": 42
   },
-  "generated_utc": "2026-09-08T03:42:10.852912+00:00"
+  "generated_utc": "2026-09-08T21:32:52.873215+00:00"
 }
 ```
 
 </details>
 
-**Conclusion.** Per-method results retain their reported coverage. The published shared-subset comparison covers Q2/Q8; LoRA has complete validation metrics.
-
-These are development results: validation participates in model selection. AlphaMissense calibration and REVEL/PolyPhen-2 training overlap with ClinVar remain unresolved. The 95% intervals resample whole Q1 components and do not correct selection bias or establish clinical validity.
+These are development results: validation participates in model selection. The 95% intervals resample whole Q1 components and do not correct selection bias. Pretraining exposure and external-tool training/calibration overlap with ClinVar remain unresolved; clinical validity has not been established.
 <!-- comparison:end -->
 
 <details>
@@ -175,11 +158,6 @@ evolutionary sequences still require auditing.
 **53.7 minutes**, using 24,576 training variants and the fixed **2,048-variant
 validation sample**.
 
-| Model | AUROC [95% CI] | Average precision [95% CI] |
-| --- | --- | --- |
-| Q12 frozen-backbone classifier — selected | **0.832 [0.812, 0.853]** | **0.725 [0.681, 0.771]** |
-| Q12 LoRA with improved features and head fitting | 0.831 [0.811, 0.853] | 0.724 [0.681, 0.768] |
-
 The previous [Q11 LoRA](notebooks/Q11-lora-diagnostics.ipynb) scored
 **0.684 AUROC / 0.449 AP** on this same sample. Q12 retained the frozen classifier:
 LoRA minus its matched control was **−0.0008 AUROC [−0.0029, 0.0016]**.
@@ -200,11 +178,6 @@ adapter learning rates.
 Head fitting used 24,576 training variants; each adapter trial processed 16,384
 of them, with its best checkpoint selected by validation.
 
-| Model | AUROC [95% CI] | Average precision [95% CI] |
-| --- | --- | --- |
-| Best Q13 LoRA: learning rate 3e-5, step 256 | 0.830 [0.809, 0.851] | 0.722 [0.677, 0.767] |
-| Q13 matched frozen control | 0.829 [0.808, 0.850] | 0.722 [0.676, 0.766] |
-
 The paired AUROC gain was **+0.0006 [−0.0003, +0.0016]**. Both trials declined
 between steps 256 and 512. Q13 did **not** improve on the strongest Q12 frozen
 classifier (**0.832 AUROC / 0.725 AP**), which Q13 retained. These sampled
@@ -217,11 +190,6 @@ minutes** and improved both metrics on the same **2,048-variant development
 sample**. It held the strongest Q12 frozen classifier and its scaler fixed
 while training rank-8 adapters in blocks 29 and 30. Each of the two learning-rate
 trials processed the same 16,384 variants from the 24,576-variant training pool.
-
-| Model | AUROC [95% CI] | Average precision [95% CI] |
-| --- | --- | --- |
-| Q14 LoRA: learning rate 1e-4, step 512 — selected | **0.845 [0.825, 0.865]** | **0.748 [0.702, 0.791]** |
-| Strongest frozen classifier, inherited from Q12 | 0.832 [0.812, 0.853] | 0.725 [0.681, 0.771] |
 
 The paired gains were **+0.0130 AUROC [0.0050, 0.0206]** and **+0.0234 AP
 [0.0088, 0.0380]**. The adapter passed the prespecified sampled promotion rule:
@@ -260,31 +228,13 @@ budget applied to the exploration.
 <!-- q16-results:start -->
 ## Q16. Does longer fine-tuning improve on Q14?
 
-[Q16 continued LoRA](notebooks/Q16-lora-continuation.ipynb) continues the successful Q14 adapters with the original classifier and scaler fixed. Train on all **46,888 available training variants**, for up to **three epochs** at learning rate **3e-5**, subject to the original four-hour deadline.
-
-**Matched full validation: 17,927 missense variants.**
-
-| Model | AUROC [95% CI] | Average precision [95% CI] |
-| --- | ---: | ---: |
-| Q16 continued LoRA | 0.872 [0.859, 0.884] | 0.801 [0.769, 0.828] |
-| Q14 parent LoRA | 0.852 [0.838, 0.865] | 0.770 [0.736, 0.797] |
-| Matched frozen classifier | 0.839 [0.824, 0.852] | 0.749 [0.716, 0.778] |
+[Q16 continued LoRA](notebooks/Q16-lora-continuation.ipynb) trained on all **46,888 variants**, processing **132,592 examples** in **4,145 updates**. It continued Q14’s adapters at learning rate **3e-5**, with the classifier and scaler fixed. Full metrics and coverage appear in the [main comparison](#method-comparison).
 
 The tested continuation improved full-validation AUROC without reducing AP versus Q14. Continuation minus Q14: AUROC **+0.0204 [+0.0160, +0.0249]**, AP **+0.0316 [+0.0250, +0.0384]**. The sample-based decision retains **Q16 continued LoRA**. The best nonzero-update continuation is chosen by sample AUROC, then AP; it replaces Q14 only if sample AUROC strictly increases and AP does not decrease. Full results do not change that decision. The 2,048-variant sample selects checkpoints; full validation reports the frozen selection. The full partition and its subsets have been evaluated before and are development data, not an untouched test set. Component-bootstrap intervals do not correct repeated selection or establish clinical validity. Pretraining, homology and external-data overlap remain unresolved. Single-variant BF16 scoring is numerically sensitive; Q16 uses its verified batch-32 workflow.
 
-Fresh notebook execution: **202.4 minutes**. Elapsed from the original four-hour request through backend results: **219.9 minutes**. The notebook duration includes its input checks, training, full validation and reporting; inherited Q14 training and initial environment acquisition are excluded.
+The 2,048-variant selection sample scored **0.869 AUROC / 0.777 average precision**. Fresh notebook execution took **202.4 minutes**; the runtime reported in the main table is **220.0 minutes** through notebook completion, with its scope recorded in the comparison details.
 
-<details><summary>Selection sample and reproducibility</summary>
-
-| Model | AUROC [95% CI] | Average precision [95% CI] |
-| --- | ---: | ---: |
-| Q16 continued LoRA | 0.869 | 0.777 |
-| Q14 parent LoRA | 0.845 | 0.748 |
-| Matched frozen classifier | 0.832 | 0.725 |
-
-Training examples processed: **132,592**; unique training variants: **46,888 / 46,888**; optimizer updates: **4,145**. The preserved [Q16 result record](notebooks/results/comparison/published/q16-results.json) pins the executed notebook, displayed metrics/provenance, source hashes, Q1 cohort and original measured run status. Earlier comparison rows remain in their original section.
-
-</details>
+The [preserved Q16 record](notebooks/results/comparison/published/q16-results.json) pins the executed notebook, displayed metrics, source hashes, cohort and measured runtime.
 <!-- q16-results:end -->
 
 ## Experiment details
@@ -497,22 +447,12 @@ charges. These are rate-based estimates, not a recorded invoice.
 <details>
 <summary>Best completed 7B results and failed attempts</summary>
 
-Rows report retained checkpoints or their frozen controls; monitored trials use
-their best recorded checkpoint. Metrics are rounded to six decimals. Validation
-scope differs between rows. Full-cohort confidence intervals
-and paired effects are reported in [Q14 confirmation](#q14-full-cohort-confirmation).
+The [main comparison](#method-comparison) reports completed full-cohort results.
+The linked source notebooks retain the individual checkpoint measurements,
+sampled trials and negative outcomes. Paired effects are reported in
+[Q14 confirmation](#q14-full-cohort-confirmation) and the
+[Q16 continuation](#q16-does-longer-fine-tuning-improve-on-q14).
 There are **no untouched-test results**.
-
-| Experiment | Validation variants | AUROC | Average precision | Outcome |
-| --- | ---: | ---: | ---: | --- |
-| Q11 completed block-30 LoRA | 17,927 | 0.693415 | 0.486960 | No fitted frozen baseline |
-| Q12 LoRA with magnitude features | 2,048 | 0.831200 | 0.723744 | Frozen classifier performed better |
-| Q13, learning rate 3e-5, step 256 | 2,048 | 0.830051 | 0.722151 | Below strongest inherited control |
-| Q13, learning rate 1e-5, step 256 | 2,048 | 0.829789 | 0.722081 | Below strongest inherited control |
-| Q14, learning rate 3e-5, step 512 | 2,048 | 0.832805 | 0.727867 | Below the +0.005 AUROC promotion threshold |
-| Q14, learning rate 1e-4, step 512 | 2,048 | **0.844974** | **0.747974** | Selected |
-| Q14 strongest frozen classifier | 17,927 | 0.838565 | 0.749067 | Full-cohort baseline |
-| **Q14 selected LoRA** | **17,927** | **0.851680** | **0.769681** | **Full confirmation passed** |
 
 Q12's best frozen classifier scored **0.831970 AUROC / 0.724542 AP** on the
 selection sample. Q13's own best matched control scored **0.829448 / 0.721583**,
@@ -565,7 +505,7 @@ Missing scores remain missing, so these per-method cohorts differ.
 [Portable comparison evidence](notebooks/results/comparison/published/results.json).
 
 Q8's original per-variant caches are currently absent; its preserved measurements
-are rounded executed-notebook results with verified provenance. The existing
+are rounded executed-notebook results with verified provenance. The preserved
 **8,817-variant shared comparison excludes LoRA**. Training/calibration overlap
 with ClinVar, homologous sequences and pretraining exposure remain unresolved.
 These comparisons do not establish independent clinical validity or identify
@@ -670,6 +610,10 @@ and weights, with a 60-minute outer budget; initial installation/downloads are a
 Training uses BF16 with
 FP32 optimizer masters, fixed per-example normalization and resumable checkpoints.
 The runner reserves time for full validation and publishes only on success.
+
+After an experiment publishes its results, refresh the main comparison with
+`.venv/bin/python -m notebooks.src.readme_comparison`. This verifies the saved
+evidence and keeps one performance table, including Q16.
 
 ## Machine configuration
 
