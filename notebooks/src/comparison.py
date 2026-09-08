@@ -1,7 +1,7 @@
 """Collect verified validation predictions and update the main README comparison.
 
-This module never executes a source notebook, imports a model, or reads archives.
-Notebook saves trigger refreshes; scientific values come from exported predictions.
+This module never executes a source notebook or imports a model. Local prediction
+exports take precedence; pinned, completed notebook results survive missing caches.
 """
 
 from datetime import datetime, timezone
@@ -9,6 +9,7 @@ import hashlib
 import html
 import json
 from pathlib import Path
+import re
 import tempfile
 
 import numpy as np
@@ -26,6 +27,10 @@ Q9_METHODS = {'frozen': 'Evo2 1B base frozen head (BioNeMo, BF16)',
               'sequence': 'Sequence baseline (Evo2 1B experiment)'}
 # Keep the archived 1B experiment in result records, outside the README tables.
 README_EXCLUDED_METHODS = {'q2:zero_shot', 'q9:frozen', 'q9:sequence'}
+Q11_METHODS = {'fine_tuned': 'Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp)'}
+PUBLISHED = Path('notebooks/results/comparison/published/results.json')
+NOTEBOOKS = {'Q2': 'Q2-evo2-classifier.ipynb', 'Q8': 'Q8-existing-tools.ipynb',
+             'Q11': 'Q11-evo2-lora.ipynb', 'Q12': 'Q12-lora-validation.ipynb'}
 Q8_NOTES = {
     'AlphaMissense': 'ClinVar calibration overlap unresolved; maximum matching transcript score.',
     'REVEL': 'HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations.',
@@ -64,6 +69,8 @@ SOURCE_FILES = {
     'q9': ['protocol.json', 'readiness.json', 'metrics.json', 'validation_predictions.npz',
            'baseline_selection.json', 'frozen_features.json'],
     'q10': ['feature_manifest.json'],
+    'q11': ['protocol.json', 'run_status.json', 'metrics.json', 'comparison_results.json',
+            'comparison_predictions.csv'],
 }
 
 
@@ -106,6 +113,9 @@ def source_paths(root=ROOT):
     paths = set((root / 'notebooks').glob('Q*.ipynb'))
     paths.update((root / 'notebooks/src').glob('q*.py'))
     paths.add(root / 'notebooks/src/q8_catalog.json')
+    paths.add(root / 'notebooks/src/comparison.py')
+    paths.add(root / PUBLISHED)
+    paths.update((root / PUBLISHED.parent).glob('*.md'))
     for question, names in SOURCE_FILES.items():
         paths.update(root / 'notebooks/results' / question / name for name in names)
     paths.update(root / 'data' / name for name in ['clinvar-train-pilot.vcf', 'clinvar-test-pilot.vcf',
@@ -164,6 +174,7 @@ def load_context(root):
     validation = validation.merge(labels, on='variant_key', validate='one_to_one')
     require(set(validation.label) == {0, 1}, 'Q1 validation needs both ClinVar classes')
     return {'protocol_sha256': digest(directory / 'protocol.json'), 'vcf_exports': protocol['vcf_exports'],
+            'artifacts': protocol['artifacts'],
             'validation': validation, 'pilot_keys': pilot.variant_key.tolist(),
             'config': protocol['config'], 'scope': scope}
 
@@ -351,6 +362,141 @@ def summarize(labels, predictions, groups, repetitions=REPETITIONS):
     return result
 
 
+def published_results(root, context=None):
+    """Read portable measurements, checking their executed-notebook evidence.
+
+    A regenerated parent protocol can differ while the VCFs, labels, components
+    and DNA are byte-identical. Match those artifacts, not the parent's hash.
+    These records never supply per-variant predictions or new shared-subset scores.
+    """
+    root = Path(root)
+    saved = read_json(root / PUBLISHED)
+    require(saved['schema_version'] == 1, 'Unsupported published-result schema')
+    notebooks = {}
+
+    def notebook(path):
+        if path not in notebooks:
+            verified(root / path, saved['notebook_sha256'][path])
+            value = read_json(root / path)
+            cells = [c for c in value['cells'] if c['cell_type'] == 'code']
+            require(cells and all(c['source'] for c in cells)
+                    and [c['execution_count'] for c in cells] == list(range(1, len(cells) + 1))
+                    and not any(o['output_type'] == 'error' for c in cells for o in c['outputs']),
+                    'Published notebook is not completely executed')
+            notebooks[path] = value
+        return notebooks[path]
+
+    def output(path, evidence, mime):
+        data = notebook(path)['cells'][evidence['cell']]['outputs'][evidence['output']]['data'][mime]
+        return ''.join(data) if isinstance(data, list) else data
+
+    def payload(path, evidence):
+        text = output(path, evidence, 'text/html')
+        match = re.search(r'<pre>(.*?)</pre>', text, re.S)
+        require(match is not None, 'Published JSON evidence is missing')
+        return json.loads(html.unescape(match[1]))
+
+    def select(value, keys):
+        for key in keys:
+            value = value[key]
+        return value
+
+    cohort = saved['cohort']
+    original = payload(saved['cohort_notebook'], saved['cohort_evidence'])
+    require(cohort['scope'] == 'full' and cohort['clinvar_date'] == original['config']['clinvar_date']
+            and cohort['vcf_exports'] == original['vcf_exports']
+            and all(original['artifacts'][k] == v for k, v in cohort['artifacts'].items()),
+            'Published cohort differs from the completed Q1 notebook')
+    if context is not None:
+        require(context['scope'] == 'full' and context['vcf_exports'] == cohort['vcf_exports']
+                and context['config'].get('clinvar_date') == cohort['clinvar_date']
+                and len(context['validation']) == cohort['validation_variants']
+                and all(context['artifacts'].get(k) == v for k, v in cohort['artifacts'].items()),
+                'Published results do not match the current frozen cohort')
+    for name, checksum in cohort['vcf_exports'].items():
+        if (root / 'data' / name).exists():
+            verified(root / 'data' / name, checksum)
+    verified(root / saved['prior_readme']['path'], saved['prior_readme']['sha256'])
+    prior = (root / saved['prior_readme']['path']).read_text()
+    prior_metadata = json.loads(re.search(r'```json\n(.*?)\n```', prior, re.S)[1])
+    require(all(cohort[k] == v for k, v in prior_metadata['cohort'].items()),
+            'Published README cohort identity changed')
+    rows, errors = {}, {}
+    for record in saved['methods']:
+        row = dict(record)
+        try:
+            evidence, path = row['evidence'], row['notebook']
+            if evidence['kind'] == 'json':
+                value = payload(path, evidence)
+                require(select(value, evidence['metrics_path']) == row['metrics']
+                        and select(value, evidence['count_path']) == row['covered'] == row['total'],
+                        'Published metrics differ from notebook JSON')
+                if 'runtime_path' in evidence:
+                    require(select(value, evidence['runtime_path']) == row['runtime_seconds'],
+                            'Published runtime differs from notebook JSON')
+            elif evidence['kind'] == 'table':
+                lines = output(path, evidence, 'text/markdown').splitlines()
+                line = next(line for line in lines if line.startswith('| ' + evidence['row'] + ' |'))
+                require(f'{row["covered"]:,} / {row["total"]:,}' in line
+                        and all(format_metric(row, metric) in line for metric in ['auroc', 'average_precision']),
+                        'Published metrics differ from notebook table')
+                streams = ''.join(''.join(o.get('text', '')) for c in notebook(path)['cells']
+                                  for o in c.get('outputs', []))
+                match = re.search(re.escape(row['method']) + r': [^\n]*; ([\d.]+) seconds\.', streams)
+                require(match is not None and float(match[1]) == row['runtime_seconds'],
+                        'Published runtime differs from executed stream')
+            else:
+                raise ValueError('Unsupported published evidence')
+            if 'runtime_display' in row:
+                line = next(line for line in prior.splitlines() if line.startswith('| ' + row['method'] + ' |'))
+                require(line.rstrip().endswith('| ' + row['runtime_display'] + ' |'),
+                        'Published rounded runtime differs from the saved README')
+            row.update(status='Published', note=row['note'] +
+                       ' Published executed-notebook result; per-variant export is absent locally.')
+            rows[row['id']] = row
+        except (OSError, ValueError, KeyError, IndexError, StopIteration, TypeError) as error:
+            errors[row['id']] = str(error)
+    common = {}
+    for identifier, measured in saved['published_common'].items():
+        if identifier not in rows:
+            continue
+        row = rows[identifier]
+        expected = (f'| {row["method"]} ({row["question"]}) | {measured["total"]} | '
+                    f'{format_metric(measured, "auroc")} | {format_metric(measured, "average_precision")} |')
+        require(expected in prior, 'Published shared-subset metrics differ from their source')
+        common[identifier] = measured
+    return {'cohort': cohort, 'methods': rows, 'common': common, 'errors': errors,
+            'bootstrap': saved['bootstrap']}
+
+
+def retain_published(root, result, methods, context=None):
+    """Use a completed record only when this method has no local export at all."""
+    if not (Path(root) / PUBLISHED).exists():
+        return
+    try:
+        published = published_results(root, context)
+    except (OSError, ValueError, KeyError, IndexError, TypeError) as error:
+        result['errors']['Published results'] = str(error)
+        return
+    result['errors'].update({'Published ' + k: v for k, v in published['errors'].items()})
+    retained = []
+    for identifier, row in published['methods'].items():
+        current = methods.get(identifier, {})
+        if current.get('metrics') or current.get('status') in ['Invalid / stale', 'Blocked']:
+            continue
+        if any((Path(root) / name).exists() for name in row['local_artifacts']):
+            continue
+        methods[identifier] = row
+        retained.append(identifier)
+    if retained:
+        result['published_methods'] = retained
+        result['published_common'] = published['common']
+        result['published_bootstrap'] = published['bootstrap']
+        if result['cohort'] is None:
+            result['cohort'] = published['cohort']
+            result['local_inputs'] = 'Local Q1 inputs absent; showing the pinned completed notebook cohort.'
+
+
 def collect(root=ROOT, repetitions=REPETITIONS):
     root = Path(root)
     catalog = read_json(root / 'notebooks/src/q8_catalog.json')
@@ -359,11 +505,21 @@ def collect(root=ROOT, repetitions=REPETITIONS):
         ('q8', {tool['name']: tool['name'] for tool in catalog['tools']}, 'Not evaluated',
          'Surveyed tool; no predictions exported for the current cohort.'),
         ('q9', Q9_METHODS, 'Not run', 'Training has not produced a completed evaluation.'),
+        ('q11', Q11_METHODS, 'Not run', 'The partial-epoch experiment with full validation has not completed.'),
     ]
     methods = {f'{question}:{key}': {'id': f'{question}:{key}', 'question': question.upper(), 'method': name,
                                    'status': status, 'note': note}
                for question, names, status, note in definitions for key, name in names.items()}
     methods['q8:PrimateAI-3D']['note'] = 'Requires licensed data; no predictions for the current cohort.'
+    status_path = root / 'notebooks/results/q11/run_status.json'
+    if status_path.exists():
+        try:
+            status = read_json(status_path)
+            if status['status'] == 'blocked':
+                for key in Q11_METHODS:
+                    methods[f'q11:{key}'].update(status='Blocked', note='Last Q11 execution: ' + status['reason'])
+        except (OSError, ValueError, KeyError):
+            pass
     result = {'generated_utc': datetime.now(timezone.utc).isoformat(), 'methods': [], 'common': {},
               'cohort': None, 'bootstrap': {'repetitions': repetitions, 'seed': SEED}, 'errors': {}}
     try:
@@ -372,6 +528,11 @@ def collect(root=ROOT, repetitions=REPETITIONS):
         result['errors']['Q1'] = str(error)
         for row in methods.values():
             row.update(status='Unavailable', note='Frozen Q1 inputs unavailable or invalid; no metrics displayed.')
+        # A clean checkout retains the published cohort. An invalid local Q1
+        # protocol must remain an error; published data never masks corruption.
+        if not any((root / 'notebooks/results/q1' / name).exists()
+                   for name in ['protocol.json', 'full/protocol.json']):
+            retain_published(root, result, methods)
         result['methods'] = list(methods.values())
         return result
     validation = context['validation']
@@ -431,16 +592,39 @@ def collect(root=ROOT, repetitions=REPETITIONS):
             candidates = {f'{question}:{column}': {'id': f'{question}:{column}', 'question': question.upper(),
                           'method': name, 'status': 'Invalid / stale', 'note': ''}
                           for column, name in spec['methods'].items()}
-            require(not set(candidates) & set(methods), 'Duplicate method IDs in custom comparison export')
+            if question == 'q11':
+                require(spec['methods'] == Q11_METHODS, 'Q11 must export its partial-epoch LoRA method')
+                require(spec.get('require_complete') is True, 'Q11 requires complete validation coverage')
+                require(context.get('scope') == 'full', 'Q11 requires the full cohort')
+                require(spec.get('vcf_exports') == context['vcf_exports'], 'Q11 VCF identity changed')
+            else:
+                require(not set(candidates) & set(methods), 'Duplicate method IDs in custom comparison export')
             methods.update(candidates)
             require(spec['q1_protocol_sha256'] == context['protocol_sha256'], 'Export cohort is stale')
             for name, checksum in spec.get('sources', {}).items():
                 verified(root / name, checksum)
             for name, checksum in spec.get('artifacts', {}).items():
                 verified(path.parent / name, checksum)
+            if question == 'q12':
+                require(spec.get('scope') == 'full_validation' and spec.get('require_complete') is True
+                        and context.get('scope') == 'full' and spec.get('vcf_exports') == context['vcf_exports'],
+                        'Q12 sampled exploration cannot enter the full-cohort comparison')
+                require('full/metrics.json' in spec.get('artifacts', {}), 'Q12 requires completed full-validation evidence')
+                completion = read_json(path.parent / 'full/metrics.json')
+                require(completion.get('scope') == 'full_validation' and completion.get('status') == 'complete'
+                        and completion.get('validation_variants') == len(validation)
+                        and completion.get('reloaded_predictions_verified') is True,
+                        'Q12 full validation is incomplete')
+            if question == 'q11':
+                require('metrics.json' in spec.get('artifacts', {}), 'Q11 completion marker is required')
+                completion = read_json(path.parent / 'metrics.json')
+                require(completion.get('status') == 'complete' and completion.get('training_mode') == 'partial_epoch'
+                        and completion.get('reloaded_predictions_verified') is True,
+                        'Q11 has not completed and verified its partial-epoch model')
             csv = path.with_name('comparison_predictions.csv')
             verified(csv, spec['predictions_sha256'])
-            arrays = align_predictions(pd.read_csv(csv), context, spec['methods'], allow_missing=True)
+            arrays = align_predictions(pd.read_csv(csv), context, spec['methods'],
+                                       allow_missing=not spec.get('require_complete', False))
             for column, values in arrays.items():
                 identifier = f'{question}:{column}'
                 methods[identifier].update(status='Available', note=spec.get('limitations', ''))
@@ -450,6 +634,9 @@ def collect(root=ROOT, repetitions=REPETITIONS):
             result['errors'][question.upper()] = str(error)
             for row in candidates.values():
                 row['note'] = str(error)
+            if question == 'q11':
+                for key in Q11_METHODS:
+                    methods[f'q11:{key}'].update(status='Invalid / stale', note=str(error))
     for identifier in predictions:
         try:
             timing = load_runtime(root, identifier, exports.get(identifier))
@@ -464,7 +651,6 @@ def collect(root=ROOT, repetitions=REPETITIONS):
         row.update(summary.get(identifier, {}))
         if identifier in predictions and not row.get('metrics'):
             row.update(status='Insufficient coverage', note='The scored subset needs both ClinVar classes. ' + row['note'])
-    result['methods'] = list(methods.values())
     usable = {key: values for key, values in predictions.items() if summary[key]['metrics']}
     if len(usable) >= 2:
         mask = np.logical_and.reduce([np.isfinite(values) for values in usable.values()])
@@ -473,6 +659,8 @@ def collect(root=ROOT, repetitions=REPETITIONS):
                                          groups[mask], repetitions)
         else:
             result['errors']['Common subset'] = 'The shared scored subset does not contain both classes.'
+    retain_published(root, result, methods, context)
+    result['methods'] = list(methods.values())
     return result
 
 
@@ -486,6 +674,8 @@ def format_metric(measured, key):
 
 
 def format_runtime(row):
+    if 'runtime_display' in row:
+        return row['runtime_display']
     seconds = row.get('runtime_seconds')
     if seconds is None:
         return '—'
@@ -520,7 +710,8 @@ def render(result, root=ROOT):
     notebooks = {p.stem.split('-')[0].upper(): p for p in (root / 'notebooks').glob('Q*.ipynb')}
     table = []
     for row in rows:
-        path = notebooks.get(row['question'])
+        preferred = root / 'notebooks' / NOTEBOOKS.get(row['question'], '')
+        path = preferred if preferred.is_file() else notebooks.get(row['question'])
         link = f'[{row["question"]}]({path.relative_to(root).as_posix()})' if path else row['question']
         name = html.escape(row['method']) + (' (licensed)' if row['id'] == 'q8:PrimateAI-3D' else '')
         table.append({'Method': name, 'Notebook': link,
@@ -538,6 +729,9 @@ def render(result, root=ROOT):
                 'Runtime covers the recorded stages listed in the details below; hardware and caching differ between workflows. '
                 '“—” means no verified timing is available for the current cohort.']
     available = [row for row in rows if row.get('metrics')]
+    if result.get('published_methods'):
+        sections.append('Completed notebook measurements are preserved when local prediction exports are absent. '
+                        'Their source notebooks and exact cohort checksums are verified; locally available predictions take precedence.')
     if result['common']:
         common_rows = [row for row in available if row['id'] in result['common']]
         table = [{'Method': f'{row["method"]} ({row["question"]})',
@@ -547,6 +741,19 @@ def render(result, root=ROOT):
                  for row in common_rows]
         sections.extend(['**Direct comparison on the same variants**',
                          markdown_table(table, separator_before=sum(row['question'] != 'Q8' for row in common_rows))])
+    if result.get('published_common'):
+        shared = result['published_common']
+        shared_rows = [row for row in available if row['id'] in shared]
+        table = [{'Method': f'{row["method"]} ({row["question"]})',
+                  'Shared variants': shared[row['id']]['total'],
+                  'AUROC [95% CI]': format_metric(shared[row['id']], 'auroc'),
+                  'Average precision [95% CI]': format_metric(shared[row['id']], 'average_precision')}
+                 for row in shared_rows]
+        count = next(iter(shared.values()))['total']
+        sections.extend([f'**Published comparison on {count:,} shared variants (Q2/Q8; excludes LoRA)**',
+                         markdown_table(table, separator_before=sum(row['question'] != 'Q8' for row in shared_rows)),
+                         'These shared-subset results come from the completed Q2/Q8 comparison. '
+                         'Computing LoRA on that subset requires the original per-variant exports.'])
     notes = []
     for row in rows:
         detail = row['note']
@@ -558,11 +765,15 @@ def render(result, root=ROOT):
     sections.append('<details>\n<summary>Provenance, missing results and limitations</summary>\n\n' +
                     markdown_table(notes, separator_before=external_start) + '\n\n```json\n' + json.dumps({
                         'cohort': cohort, 'source_errors': result['errors'], 'bootstrap': result['bootstrap'],
+                        'published_methods': result.get('published_methods', []),
+                        'published_bootstrap': result.get('published_bootstrap'),
                         'generated_utc': result['generated_utc']}, indent=2) + '\n```\n\n</details>')
     if len(available) == 1:
         conclusion = f'Only **{available[0]["method"]}** currently has verified metrics. A ranking awaits the other methods’ results.'
     elif not available:
         conclusion = 'No verified metrics are currently available. Complete the source experiments or resolve the listed input checks.'
+    elif result.get('published_common'):
+        conclusion = 'Per-method results retain their reported coverage. The published shared-subset comparison covers Q2/Q8; LoRA has complete validation metrics.'
     elif not result['common']:
         conclusion = 'Several methods have results, but there is no shared scored subset with both classes for a direct comparison.'
     else:

@@ -1,0 +1,449 @@
+{
+  "bootstrap": {
+    "repetitions": 1000,
+    "seed": 42
+  },
+  "cohort": {
+    "artifacts": {
+      "full_cohort_groups.csv.gz": "966369630fe5870ee41b7bf3239dd6bef9aee0e5ebf9da23ac6520be55d1e160",
+      "sequences.csv.gz": "20d19509720785e5240b0691c2b2be8b3c0800b7152fcdd9d83254d39cddee09",
+      "split_manifest.csv": "332151d7fcefda3e4f8e812d14762af04a3ab366ec2865ebe68bddf0856fcef9",
+      "validation_labels.csv": "52518a2cec44ffaa989f1d96608710dbbe196fa831e18a42f9b5ec596b64d81e"
+    },
+    "clinvar_date": "2026-07-06",
+    "protocol_sha256": "79c57bccf81867775b19c4ea272b4de9743c36b782242b4641be49185aca167c",
+    "scope": "full",
+    "validation_variants": 17927,
+    "vcf_exports": {
+      "clinvar-test.vcf": "ae019c877240364c5ab02884a68ed93f203efad1650137a8be83369fe59a8d7a",
+      "clinvar-train.vcf": "aa7d1e941ba06cd8ccc7531ae5946b4e851b7d321c531fc583d76fdd64bbdd86"
+    }
+  },
+  "cohort_evidence": {
+    "cell": 5,
+    "output": 4
+  },
+  "cohort_notebook": "notebooks/Q1-clinvar-split.ipynb",
+  "methods": [
+    {
+      "covered": 17927,
+      "evidence": {
+        "cell": 6,
+        "count_path": [
+          "full",
+          "variants"
+        ],
+        "kind": "json",
+        "metrics_path": [
+          "full",
+          "metrics",
+          "zero_shot_7b"
+        ],
+        "output": 2
+      },
+      "id": "q2:zero_shot_7b",
+      "local_artifacts": [
+        "notebooks/results/q2/comparison_results.json",
+        "notebooks/results/q2/comparison_predictions.csv",
+        "notebooks/results/q2/7b/metrics.json"
+      ],
+      "method": "Evo2 7B base zero-shot (Vortex, FP8)",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.8236072385710529,
+            0.8494258724461285
+          ],
+          "value": 0.8367869906194376
+        },
+        "average_precision": {
+          "ci95": [
+            0.6855317373438083,
+            0.7548903419162959
+          ],
+          "value": 0.7236330013565477
+        }
+      },
+      "note": "Zero-shot inference on the complete current full validation cohort. No parameters or thresholds fitted. Archived September results are not mixed with this run. Pretraining, homology and annotation overlap remain unresolved; validation is development data, not an untouched final test.",
+      "notebook": "notebooks/Q2-evo2-classifier.ipynb",
+      "question": "Q2",
+      "runtime_display": "2.3 h",
+      "runtime_scope": "Validation scoring batches summed across runs; excludes downloads, model loading and evaluation. Published rounded duration.",
+      "total": 17927
+    },
+    {
+      "covered": 17927,
+      "evidence": {
+        "cell": 9,
+        "count_path": [
+          "validation_variants"
+        ],
+        "kind": "json",
+        "metrics_path": [
+          "metrics",
+          "fine_tuned"
+        ],
+        "output": 1,
+        "runtime_path": [
+          "runtimes",
+          "fine_tuned",
+          "seconds"
+        ]
+      },
+      "id": "q11:fine_tuned",
+      "local_artifacts": [
+        "notebooks/results/q11/metrics.json",
+        "notebooks/results/q11/comparison_results.json",
+        "notebooks/results/q11/comparison_predictions.csv"
+      ],
+      "method": "Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp)",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.6750079748885122,
+            0.7108237412848585
+          ],
+          "value": 0.6934152957833741
+        },
+        "average_precision": {
+          "ci95": [
+            0.43477009916582804,
+            0.5359393001060441
+          ],
+          "value": 0.48695982899462936
+        }
+      },
+      "note": "User-authorized partial-epoch training for a one-hour run; full frozen validation is retained. No fitted frozen baseline or improvement claim; these are development results. Pretraining sequence exposure, homology and shared-patient overlap remain unresolved. The final attention block is numerically inactive in this BF16 configuration; LoRA targets the preceding Hyena mixer. No clinical validity or independent final-test performance is established.",
+      "notebook": "notebooks/Q11-evo2-lora.ipynb",
+      "question": "Q11",
+      "runtime_scope": "Fresh notebook start through input checks, cached setup verification, preflight, partial-epoch training, full validation, 64-variant reload check and bootstrap; excludes initial environment/model acquisition and final notebook/README export.",
+      "runtime_seconds": 2556.4911012649536,
+      "total": 17927
+    },
+    {
+      "covered": 16884,
+      "evidence": {
+        "cell": 13,
+        "kind": "table",
+        "output": 0,
+        "row": "AlphaMissense"
+      },
+      "id": "q8:AlphaMissense",
+      "local_artifacts": [
+        "notebooks/results/q8/full/baseline_provenance.json",
+        "notebooks/results/q8/full/validation_predictions.csv",
+        "notebooks/results/q8/full/validation_metrics.json"
+      ],
+      "method": "AlphaMissense",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.956,
+            0.967
+          ],
+          "value": 0.962
+        },
+        "average_precision": {
+          "ci95": [
+            0.923,
+            0.951
+          ],
+          "value": 0.94
+        }
+      },
+      "note": "ClinVar calibration overlap unresolved; maximum matching transcript score.",
+      "notebook": "notebooks/Q8-existing-tools.ipynb",
+      "question": "Q8",
+      "runtime_scope": "CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training.",
+      "runtime_seconds": 69.8,
+      "total": 17927
+    },
+    {
+      "covered": 17720,
+      "evidence": {
+        "cell": 13,
+        "kind": "table",
+        "output": 0,
+        "row": "REVEL"
+      },
+      "id": "q8:REVEL",
+      "local_artifacts": [
+        "notebooks/results/q8/full/revel/baseline_provenance.json",
+        "notebooks/results/q8/full/revel/validation_predictions.csv",
+        "notebooks/results/q8/full/revel/validation_metrics.json"
+      ],
+      "method": "REVEL",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.97,
+            0.978
+          ],
+          "value": 0.974
+        },
+        "average_precision": {
+          "ci95": [
+            0.945,
+            0.968
+          ],
+          "value": 0.958
+        }
+      },
+      "note": "HGMD and constituent-tool training overlap with ClinVar unresolved; maximum exact-allele score across transcript annotations.",
+      "notebook": "notebooks/Q8-existing-tools.ipynb",
+      "question": "Q8",
+      "runtime_scope": "CPU validation lookup and evaluation, including archive verification/downloads; excludes Q1 audits and upstream model training.",
+      "runtime_seconds": 106.1,
+      "total": 17927
+    },
+    {
+      "covered": 16917,
+      "evidence": {
+        "cell": 13,
+        "kind": "table",
+        "output": 0,
+        "row": "SIFT4G"
+      },
+      "id": "q8:SIFT4G",
+      "local_artifacts": [
+        "notebooks/results/q8/full/sift4g/baseline_provenance.json",
+        "notebooks/results/q8/full/sift4g/validation_predictions.csv",
+        "notebooks/results/q8/full/sift4g/validation_metrics.json"
+      ],
+      "method": "SIFT4G",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.865,
+            0.89
+          ],
+          "value": 0.878
+        },
+        "average_precision": {
+          "ci95": [
+            0.734,
+            0.804
+          ],
+          "value": 0.772
+        }
+      },
+      "note": "dbNSFP4.9a; 1 minus the minimum raw SIFT4G score. Evolutionary sequence exposure is unaudited.",
+      "notebook": "notebooks/Q8-existing-tools.ipynb",
+      "question": "Q8",
+      "runtime_scope": "CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training.",
+      "runtime_seconds": 13.0,
+      "total": 17927
+    },
+    {
+      "covered": 16430,
+      "evidence": {
+        "cell": 13,
+        "kind": "table",
+        "output": 0,
+        "row": "PolyPhen-2"
+      },
+      "id": "q8:PolyPhen-2",
+      "local_artifacts": [
+        "notebooks/results/q8/full/polyphen2/baseline_provenance.json",
+        "notebooks/results/q8/full/polyphen2/validation_predictions.csv",
+        "notebooks/results/q8/full/polyphen2/validation_metrics.json"
+      ],
+      "method": "PolyPhen-2",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.883,
+            0.905
+          ],
+          "value": 0.894
+        },
+        "average_precision": {
+          "ci95": [
+            0.781,
+            0.852
+          ],
+          "value": 0.822
+        }
+      },
+      "note": "HumVar model from dbNSFP4.9a; maximum raw score. Known disease training variants may overlap ClinVar.",
+      "notebook": "notebooks/Q8-existing-tools.ipynb",
+      "question": "Q8",
+      "runtime_scope": "CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training.",
+      "runtime_seconds": 12.4,
+      "total": 17927
+    },
+    {
+      "covered": 9284,
+      "evidence": {
+        "cell": 13,
+        "kind": "table",
+        "output": 0,
+        "row": "EVE"
+      },
+      "id": "q8:EVE",
+      "local_artifacts": [
+        "notebooks/results/q8/full/eve/baseline_provenance.json",
+        "notebooks/results/q8/full/eve/validation_predictions.csv",
+        "notebooks/results/q8/full/eve/validation_metrics.json"
+      ],
+      "method": "EVE",
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.889,
+            0.925
+          ],
+          "value": 0.909
+        },
+        "average_precision": {
+          "ci95": [
+            0.889,
+            0.935
+          ],
+          "value": 0.916
+        }
+      },
+      "note": "dbNSFP4.9a continuous EVE score; maximum across matches, no confidence-category filtering. Limited protein/position coverage.",
+      "notebook": "notebooks/Q8-existing-tools.ipynb",
+      "question": "Q8",
+      "runtime_scope": "CPU validation score aggregation and evaluation; excludes shared dbNSFP acquisition, Q1 audits and upstream model training.",
+      "runtime_seconds": 5.5,
+      "total": 17927
+    }
+  ],
+  "note": "Published measurements recovered verbatim from completed notebook outputs. The prior common subset excludes Q11; without its variant-level source exports no LoRA shared-subset score is inferred.",
+  "notebook_sha256": {
+    "notebooks/Q1-clinvar-split.ipynb": "e745e4c6392e77db2b8fa85416f14f4c76ac8bbc927249afb78905155fd43bd4",
+    "notebooks/Q11-evo2-lora.ipynb": "2a3d68eb088a0d71af30caf53141205dec30e188d13eab509f346808f20ba86b",
+    "notebooks/Q2-evo2-classifier.ipynb": "ff663153fa83188879501c6f1f57d07996def29f55b84fe3b15842c27f6d3f1c",
+    "notebooks/Q8-existing-tools.ipynb": "fb1cf7b81480d267354ddd79dfdb5eee666483980d5ad62ad76373126181d04d"
+  },
+  "prior_readme": {
+    "git_commit": "ec0765acec32f7d7825e1fd48f54d6264d3df10d",
+    "path": "notebooks/results/comparison/published/prior-readme.md",
+    "sha256": "76a93eb3e2dbefd205d728d3cfd4c7aeb69d4c2aa3c551d5b8b4cc2bf7f05e4e"
+  },
+  "published_common": {
+    "q2:zero_shot_7b": {
+      "covered": 8817,
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.797,
+            0.832
+          ],
+          "value": 0.815
+        },
+        "average_precision": {
+          "ci95": [
+            0.791,
+            0.855
+          ],
+          "value": 0.824
+        }
+      },
+      "total": 8817
+    },
+    "q8:AlphaMissense": {
+      "covered": 8817,
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.953,
+            0.968
+          ],
+          "value": 0.961
+        },
+        "average_precision": {
+          "ci95": [
+            0.957,
+            0.975
+          ],
+          "value": 0.967
+        }
+      },
+      "total": 8817
+    },
+    "q8:EVE": {
+      "covered": 8817,
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.893,
+            0.928
+          ],
+          "value": 0.911
+        },
+        "average_precision": {
+          "ci95": [
+            0.899,
+            0.94
+          ],
+          "value": 0.921
+        }
+      },
+      "total": 8817
+    },
+    "q8:PolyPhen-2": {
+      "covered": 8817,
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.887,
+            0.913
+          ],
+          "value": 0.9
+        },
+        "average_precision": {
+          "ci95": [
+            0.879,
+            0.925
+          ],
+          "value": 0.903
+        }
+      },
+      "total": 8817
+    },
+    "q8:REVEL": {
+      "covered": 8817,
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.966,
+            0.978
+          ],
+          "value": 0.972
+        },
+        "average_precision": {
+          "ci95": [
+            0.967,
+            0.984
+          ],
+          "value": 0.976
+        }
+      },
+      "total": 8817
+    },
+    "q8:SIFT4G": {
+      "covered": 8817,
+      "metrics": {
+        "auroc": {
+          "ci95": [
+            0.872,
+            0.901
+          ],
+          "value": 0.887
+        },
+        "average_precision": {
+          "ci95": [
+            0.853,
+            0.906
+          ],
+          "value": 0.881
+        }
+      },
+      "total": 8817
+    }
+  },
+  "schema_version": 1
+}

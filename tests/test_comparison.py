@@ -109,6 +109,130 @@ class ComparisonTests(unittest.TestCase):
         self.assertIn('notebooks/results/q1/full/protocol.json', c.source_signature(self.root))
         self.assertIn('data/clinvar-test.vcf', c.source_signature(self.root))
 
+    def published_fixture(self):
+        directory = self.publish_full_cohort()
+        protocol = c.read_json(directory / 'protocol.json')
+        cohort = {'scope': 'full', 'clinvar_date': '2026-07-06', 'validation_variants': 4,
+                  'protocol_sha256': c.digest(directory / 'protocol.json'),
+                  'vcf_exports': protocol['vcf_exports'], 'artifacts': protocol['artifacts']}
+        measured = {'covered': 4, 'total': 4, 'metrics': {
+            'auroc': {'value': .875, 'ci95': [.75, 1.]},
+            'average_precision': {'value': .833, 'ci95': [.7, 1.]}}}
+        q1_name = 'notebooks/Q1-clinvar-split.ipynb'
+        q8_name = 'notebooks/Q8-existing-tools.ipynb'
+        q1_cell = nbformat.v4.new_code_cell('show_protocol()', execution_count=1, outputs=[
+            nbformat.v4.new_output('display_data', data={
+                'text/html': '<pre>' + c.html.escape(json.dumps(protocol)) + '</pre>'})])
+        q8_cell = nbformat.v4.new_code_cell('show_results()', execution_count=1, outputs=[
+            nbformat.v4.new_output('display_data', data={'text/markdown':
+                '| AlphaMissense | 4 / 4 | 0.875 [0.750, 1.000] | 0.833 [0.700, 1.000] |'}),
+            nbformat.v4.new_output('stream', name='stdout', text='AlphaMissense: completed; 12.0 seconds.\n')])
+        for name, cell in [(q1_name, q1_cell), (q8_name, q8_cell)]:
+            nbformat.write(nbformat.v4.new_notebook(cells=[cell]), self.root / name)
+        prior_path = self.root / c.PUBLISHED.parent / 'prior-readme.md'
+        prior_path.parent.mkdir(parents=True)
+        prior_path.write_text('```json\n' + json.dumps({'cohort': cohort}) + '\n```\n'
+            '| AlphaMissense (Q8) | 4 | 0.875 [0.750, 1.000] | 0.833 [0.700, 1.000] |\n')
+        record = {**measured, 'id': 'q8:AlphaMissense', 'question': 'Q8', 'method': 'AlphaMissense',
+                  'note': 'Completed fixture.', 'notebook': q8_name, 'runtime_seconds': 12.,
+                  'local_artifacts': ['notebooks/results/q8/full/baseline_provenance.json',
+                                      'notebooks/results/q8/full/validation_predictions.csv'],
+                  'evidence': {'kind': 'table', 'cell': 0, 'output': 0, 'row': 'AlphaMissense'}}
+        saved = {'schema_version': 1, 'cohort': cohort, 'cohort_notebook': q1_name,
+                 'cohort_evidence': {'cell': 0, 'output': 0},
+                 'notebook_sha256': {name: c.digest(self.root / name) for name in [q1_name, q8_name]},
+                 'methods': [record], 'published_common': {'q8:AlphaMissense': measured},
+                 'bootstrap': {'repetitions': 1000, 'seed': 42},
+                 'prior_readme': {'path': str(prior_path.relative_to(self.root)), 'sha256': c.digest(prior_path)}}
+        self.dump(c.PUBLISHED, saved)
+        return saved
+
+    def test_completed_notebook_scores_survive_missing_exports_and_repeated_refresh(self):
+        saved = self.published_fixture()
+        self.export(cohort=saved['cohort']['protocol_sha256'])
+        for _ in range(2):
+            result, section = c.refresh(self.root, repetitions=10)
+            rows = {row['id']: row for row in result['methods']}
+            self.assertEqual(rows['q8:AlphaMissense']['status'], 'Published')
+            self.assertEqual(rows['q8:AlphaMissense']['metrics'], saved['methods'][0]['metrics'])
+            self.assertEqual(rows['q10:score']['status'], 'Available')
+            self.assertEqual(result['common'], {})
+            self.assertIn('4 shared variants (Q2/Q8; excludes LoRA)', section)
+            self.assertIn('Published executed-notebook result', section)
+            self.assertFalse(result['errors'])
+        self.assertIn(str(c.PUBLISHED), c.source_signature(self.root))
+
+    def test_published_scores_match_data_even_after_parent_protocol_regeneration(self):
+        self.published_fixture()
+        path = self.results / 'q1/full/protocol.json'
+        path.write_text(json.dumps(c.read_json(path) | {'regenerated_parent': 'different identity'}))
+        result = c.collect(self.root, repetitions=10)
+        self.assertEqual(result['published_methods'], ['q8:AlphaMissense'])
+        self.assertFalse(result['errors'])
+
+    def test_published_scores_cannot_mask_invalid_or_partial_local_exports(self):
+        self.published_fixture()
+        path = self.dump('notebooks/results/q8/full/baseline_provenance.json', {})
+        result = c.collect(self.root, repetitions=10)
+        row = next(row for row in result['methods'] if row['id'] == 'q8:AlphaMissense')
+        self.assertEqual(row['status'], 'Invalid / stale')
+        self.assertNotIn('metrics', row)
+        path.unlink()
+        path.with_name('validation_predictions.csv').write_text('partial')
+        result = c.collect(self.root, repetitions=10)
+        self.assertNotIn('published_methods', result)
+
+    def test_tampered_or_unexecuted_published_notebook_is_rejected(self):
+        saved = self.published_fixture()
+        notebook = nbformat.read(self.source_notebook, as_version=4)
+        notebook.cells[0].execution_count = None
+        nbformat.write(notebook, self.source_notebook)
+        for update_hash in [False, True]:
+            if update_hash:
+                saved['notebook_sha256']['notebooks/Q8-existing-tools.ipynb'] = c.digest(self.source_notebook)
+                self.dump(c.PUBLISHED, saved)
+            result = c.collect(self.root, repetitions=10)
+            self.assertIn('Published q8:AlphaMissense', result['errors'])
+            self.assertNotIn('published_methods', result)
+
+    def test_published_metrics_must_match_executed_output(self):
+        saved = self.published_fixture()
+        saved['methods'][0]['metrics']['auroc']['value'] = .99
+        self.dump(c.PUBLISHED, saved)
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('Published q8:AlphaMissense', result['errors'])
+        self.assertNotIn('published_methods', result)
+
+    def test_clean_checkout_retains_published_but_corrupt_q1_cannot(self):
+        self.published_fixture()
+        path = self.results / 'q1/full/protocol.json'
+        path.write_text('{}')
+        result = c.collect(self.root, repetitions=10)
+        self.assertIsNone(result['cohort'])
+        self.assertNotIn('published_methods', result)
+        path.unlink()
+        (self.results / 'q1/protocol.json').unlink()
+        result = c.collect(self.root, repetitions=10)
+        self.assertEqual(result['published_methods'], ['q8:AlphaMissense'])
+        self.assertEqual(result['cohort']['validation_variants'], 4)
+
+    def test_published_cohort_mismatch_is_rejected(self):
+        self.published_fixture()
+        path = self.results / 'q1/full/protocol.json'
+        protocol = c.read_json(path)
+        protocol['config']['clinvar_date'] = '2026-08-01'
+        path.write_text(json.dumps(protocol))
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('Published results', result['errors'])
+        self.assertNotIn('published_methods', result)
+
+    def test_diagnostic_notebooks_do_not_replace_main_q11_comparison_link(self):
+        for name in ['Q11-evo2-lora.ipynb', 'Q11-gradient-diagnostics.ipynb', 'Q11-lora-diagnostics.ipynb']:
+            nbformat.write(nbformat.v4.new_notebook(), self.root / 'notebooks' / name)
+        section = c.render(c.collect(self.root, repetitions=10), self.root)
+        self.assertIn('[Q11](notebooks/Q11-evo2-lora.ipynb)', section)
+        self.assertNotIn('Q11-lora-diagnostics.ipynb', section)
+
     def test_invalid_full_cohort_cannot_fall_back_to_valid_pilot(self):
         self.q8()
         directory = self.publish_full_cohort()
@@ -125,6 +249,24 @@ class ComparisonTests(unittest.TestCase):
         row = next(row for row in result['methods'] if row['id'] == 'q10:score')
         self.assertEqual(row['covered'], 4)
         self.assertIn('metrics', row)
+
+    def test_q12_rejects_sample_scope_even_if_csv_contains_full_membership(self):
+        directory = self.publish_full_cohort()
+        self.export('q12', cohort=c.digest(directory / 'protocol.json'))
+        path = self.results / 'q12/comparison_results.json'
+        spec = c.read_json(path) | {'scope': 'sampled_validation', 'require_complete': True,
+                                   'vcf_exports': c.read_json(directory / 'protocol.json')['vcf_exports']}
+        self.dump(str(path.relative_to(self.root)), spec)
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('Q12', result['errors'])
+        self.assertFalse(any(row.get('metrics') for row in result['methods'] if row['question'] == 'Q12'))
+        marker = self.dump('notebooks/results/q12/full/metrics.json', {'status':'complete', 'scope':'full_validation',
+            'validation_variants':4, 'reloaded_predictions_verified':True})
+        spec.update(scope='full_validation', artifacts={'full/metrics.json':c.digest(marker)})
+        self.dump(str(path.relative_to(self.root)), spec)
+        result = c.collect(self.root, repetitions=10)
+        self.assertNotIn('Q12', result['errors'])
+        self.assertTrue(any(row.get('metrics') for row in result['methods'] if row['question'] == 'Q12'))
 
     def test_missing_full_protocol_cannot_fall_back_to_pilot(self):
         self.q8()
@@ -164,7 +306,7 @@ class ComparisonTests(unittest.TestCase):
         self.revel()
         result = c.collect(self.root, repetitions=10)
         rows = {r['id']: r for r in result['methods']}
-        self.assertEqual(len(rows), 9)
+        self.assertEqual(len(rows), 10)
         self.assertEqual(rows['q8:REVEL']['covered'], 3)
         self.assertEqual(rows['q8:REVEL']['metrics']['auroc']['value'], 1)
         self.assertNotIn('metrics', rows['q8:AlphaMissense'])
@@ -212,7 +354,7 @@ class ComparisonTests(unittest.TestCase):
             'q1_protocol_sha256': c.digest(self.results / 'q1/protocol.json')})
         result = c.collect(self.root, repetitions=10)
         rows = {r['id']: r for r in result['methods']}
-        self.assertEqual(len(rows), 9)
+        self.assertEqual(len(rows), 10)
         for tool in ['SIFT4G', 'PolyPhen-2', 'EVE']:
             self.assertEqual(rows[f'q8:{tool}']['metrics']['auroc']['value'], 1)
         self.assertEqual(rows['q8:PrimateAI-3D']['status'], 'Blocked')
@@ -226,7 +368,7 @@ class ComparisonTests(unittest.TestCase):
     def test_missing_results_stay_missing_and_archives_are_ignored(self):
         self.dump('notebooks/results/archive/q2/validation_report.json', {'auroc': 1})
         result = c.collect(self.root, repetitions=10)
-        self.assertEqual(len(result['methods']), 9)
+        self.assertEqual(len(result['methods']), 10)
         self.assertTrue(all('metrics' not in row for row in result['methods']))
         self.assertFalse(result['common'])
 
@@ -244,12 +386,42 @@ class ComparisonTests(unittest.TestCase):
 
     def test_shared_subset_is_recomputed_not_copied(self):
         self.export(scores=[.1, .9, .8, .2])
-        self.export('q11', scores=[.2, .8, np.nan, np.nan])
+        self.export('q13', scores=[.2, .8, np.nan, np.nan])
         result = c.collect(self.root, repetitions=10)
         row = next(row for row in result['methods'] if row['id'] == 'q10:score')
         self.assertEqual(row['metrics']['auroc']['value'], .75)
         self.assertEqual(result['common']['q10:score']['metrics']['auroc']['value'], 1)
         self.assertEqual(result['common']['q10:score']['total'], 2)
+
+    def test_q11_requires_complete_current_full_cohort(self):
+        self.publish_full_cohort()
+        context = c.load_context(self.root)
+        directory = self.results / 'q11'
+        directory.mkdir()
+        path = directory / 'comparison_predictions.csv'
+        frame = self.labels.assign(fine_tuned=[.1, .9, .2, .8])
+        frame.to_csv(path, index=False)
+        marker = self.dump('notebooks/results/q11/metrics.json', {
+            'status': 'complete', 'training_mode': 'partial_epoch', 'reloaded_predictions_verified': True})
+        spec = {'methods': c.Q11_METHODS, 'require_complete': True,
+                'q1_protocol_sha256': context['protocol_sha256'], 'vcf_exports': context['vcf_exports'],
+                'predictions_sha256': c.digest(path), 'artifacts': {'metrics.json': c.digest(marker)}}
+        self.dump('notebooks/results/q11/comparison_results.json', spec)
+        result = c.collect(self.root, repetitions=10)
+        rows = {r['id']: r for r in result['methods'] if r['question'] == 'Q11'}
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(all(r['status'] == 'Available' for r in rows.values()))
+        self.assertEqual(rows['q11:fine_tuned']['metrics']['auroc']['value'], 1.)
+        for change in [{'q1_protocol_sha256': 'stale'}, {'require_complete': False}]:
+            self.dump('notebooks/results/q11/comparison_results.json', {**spec, **change})
+            result = c.collect(self.root, repetitions=10)
+            self.assertTrue(all('metrics' not in r for r in result['methods'] if r['question'] == 'Q11'))
+        frame.loc[0, 'fine_tuned'] = np.nan
+        frame.to_csv(path, index=False)
+        self.dump('notebooks/results/q11/comparison_results.json', {**spec, 'predictions_sha256': c.digest(path)})
+        result = c.collect(self.root, repetitions=10)
+        self.assertIn('Q11', result['errors'])
+        self.assertTrue(all('metrics' not in r for r in result['methods'] if r['question'] == 'Q11'))
 
     def test_stale_cohort_bad_hash_and_wrong_labels_never_get_metrics(self):
         self.export(cohort='other cohort')
@@ -332,7 +504,7 @@ class ComparisonTests(unittest.TestCase):
 
     def test_single_class_shared_subset_is_not_ranked(self):
         self.export(scores=[.1, .9, np.nan, np.nan])
-        self.export('q11', scores=[.2, np.nan, np.nan, .8])
+        self.export('q13', scores=[.2, np.nan, np.nan, .8])
         result = c.collect(self.root, repetitions=10)
         self.assertFalse(result['common'])
         self.assertIn('Common subset', result['errors'])

@@ -5,13 +5,30 @@ Q1's shared VCF partitions belong in the project-root [data/](../../data/) direc
 
 ## Comparison exports
 
-The root [README comparison](../../README.md#method-comparison) aggregates Q2, Q8, Q9 and Q10 and
+The root [README comparison](../../README.md#method-comparison) aggregates Q2, Q8, Q9, Q10 and Q11 and
 lists unevaluated Q8 competitors. It recomputes AUROC and average precision from
 verified validation predictions, with 1,000 component-bootstrap replicates and
 seed 42. Each method's own coverage is shown; direct comparisons use the intersection
 of scored variants. Invalid/stale inputs, missing results and blocked experiments
 are explained in the expandable details. Archived broad-SNV and September pilot
 results never enter the current July full-cohort comparison.
+
+`comparison/published/results.json` retains measurements from completed source
+notebooks when their ignored prediction exports are absent in a checkout. These
+small published records are versioned alongside the notebooks. Each record pins
+the executed notebook checksum and the exact output containing its metrics;
+cohort matching verifies the VCFs, split membership, labels and DNA checksums.
+A regenerated parent protocol is accepted only when these inputs remain identical.
+Valid local predictions take precedence. Invalid or partially present local
+exports remain explicit errors and never fall back to published scores.
+
+`comparison/published/prior-readme.md` preserves the source for previously
+published Q2/Q8 shared-subset results and rounded timings. Without the original
+per-variant exports, that subset cannot be extended to LoRA. The README labels
+the retained shared comparison separately and reports LoRA on full validation.
+Notebook edits invalidate a retained record until its evidence is reverified;
+this mechanism preserves completed measurements without executing notebooks or
+inventing missing predictions.
 
 `comparison/summary.json` and `methods.csv` are generated alongside
 the README section. The summary records source hashes, Q1 identity, coverage, metrics,
@@ -330,6 +347,117 @@ sources and protocol remain in `archive/before_convergence_fix/`; cached batches
 retain that original identity and their original hashes. Reuse verifies unchanged
 DNA, checkpoint, runtime and backbone code, and permits only the recorded classifier
 iteration-limit change. It does not relabel old features as newly computed results.
+
+## Q11 artifacts: one-hour partial-epoch Evo2 7B LoRA
+
+[Q11](../Q11-evo2-lora.ipynb) uses the frozen July training pool and full validation,
+with a user-authorized partial epoch, and stores its own
+protocols, checkpoint conversion and results under `q11/`. Original source
+weights are shared under `data/evo2-savanna-7b/`; the pinned BioNeMo runtime is
+shared with Q9. Historical Q9/Q10 pilot protocols and results are not consumed.
+
+- `input_checks.json`, `protocol.json`, `environment/`, `checkpoint_source.json`,
+  `converted_checkpoint.json`: frozen full inputs, code/configuration identities,
+  dependency versions, pinned upstream sources and checksummed conversion.
+- `preflight.json`: tensor conversion audit, training-only repeatability,
+  strand/gradient/update checks and measured parameter counts/memory.
+- `calibration.json`: training-only batched throughput, feature equivalence and
+  reserved time for full validation/reporting. The earlier frozen feature batches,
+  configuration and source code are preserved under `archive/before_one_hour_*/`.
+- `last_checkpoint.pt`: resumable adapter/head weights, exact target paths,
+  rank/alpha/initialization settings, FP32 masters, Adam moments, fixed identity scaling,
+  shuffle position, RNG states and accumulated history. Saved
+  atomically every 32 optimizer steps and at the final partial-epoch boundary; an interruption repeats
+  work since the last saved boundary. `final_adapter.pt` omits the optimizer for
+  inference. Both contain a SHA-256-prefixed PyTorch payload; use
+  `q11_backend.load_checkpoint` to verify and read them. The `q11-lora-v2-partial` format
+  rejects earlier whole-block/full-epoch checkpoints and saves no original backbone tensors.
+- `training_history.json`, `training_seen.csv`, `metrics.json`,
+  `comparison_predictions.csv`, `comparison_results.json`, `validation_curves.png`:
+  actual training coverage, stop reason, whole-component intervals, compute and
+  complete validation exports. Reload verification uses the fixed first 64 validation
+  variants. `run_status.json` includes full notebook execution time and whether it
+  finished within one hour.
+- `diagnostics/execution-failed-*.ipynb`: actual partial execution with errors
+  retained when a run fails; these are diagnostics, not completed notebooks.
+  `run_status.json` records failure or completion. Earlier successful notebook
+  versions are preserved in `notebook_history/` before replacement.
+- `diagnostics/final_block_updates.json`: training-only numerical investigation
+  of the failed block-31 gate, including activation scales, gradients, weight
+  changes, fixed-head score changes and restoration checks for blocks 31 and 30.
+  `archive/block31_preflight/` and `archive/before_lora_*/` preserve the failed
+  protocol, sources and diagnostics. Reproducing this historical probe requires
+  its archived implementation and configuration.
+- `diagnostics/original_numerics/`: fresh traces of all 32 blocks and tail
+  submodules, source-to-loaded tensor audit, residual-addition precision replay,
+  one synthetic-target step comparing FP32 masters with deployed BF16 weights,
+  and frozen/head/restoration checks. The completed
+  [original Q11 investigation](../Q11-gradient-diagnostics.ipynb) reruns these
+  probes from the archived configuration without reading validation labels.
+  Regenerate and execute it with
+  `.venv/bin/python -m notebooks.src.q11_numerics --notebook`.
+- `diagnostics/lora_quality/`: checkpoint and implementation identity, sampled
+  trained/disabled-adapter predictions, reference/difference head contributions,
+  raw difference magnitudes, seeded seen/unseen training probes, paired
+  component-bootstrap differences and plots. The
+  [LoRA performance investigation](../Q11-lora-diagnostics.ipynb) freezes a
+  uniform, seed-42 sample of 2,048 validation keys before inference, checks
+  their saved predictions against a fresh forward pass, then disables
+  adapter outputs while holding the trained head fixed. The smaller diagnostic
+  sample was requested to reduce runtime; the full 17,927-variant benchmark
+  remains unchanged. Completed training probes are verified and reused from
+  `archive/lora_quality_full_attempt_20260907T232136Z/`, which also preserves
+  the interrupted full-pass log, partial notebook, protocol and source.
+  This intervention is
+  not a separately fitted frozen-head baseline. It changes no original Q11
+  weights, metrics or cohort. Generate and execute it with
+  `.venv/bin/python -m notebooks.src.q11_lora_diagnostics --notebook`.
+
+Run `.venv/bin/python -m notebooks.src.refresh_q11` to generate, execute and save
+the notebook from a fresh Gamow kernel. The runner publishes only after all cells
+succeed and then refreshes the README. Inputs or sources that differ from an
+existing frozen protocol must be archived before a new experiment.
+
+## Q12 artifacts: magnitude-aware LoRA exploration
+
+[Q12](../Q12-lora-improvement.ipynb) uses the completed Q11 input/runtime and
+the user-authorized same 24,576 training variants and 2,048-variant validation
+sample. It starts from the original backbone and zero-output adapters. Run
+`.venv/bin/python -m notebooks.src.refresh_q12` to execute and save the notebook.
+
+- `q12/protocol.json`, `input_checks.json`: fixed membership, Q1/Q11 identities,
+  producing source hashes, feature/optimizer settings and leakage checks.
+- `preflight.json`, `calibration.json`: training-only numerical/update checks,
+  exact restoration, measured throughput and final-validation/report reserve.
+- `features/*.npz`, `feature_manifest.json`: resumable, checksummed frozen
+  unit-reference/unit-difference vectors and two log magnitude features. The
+  three classifier candidates share this extraction; the control branch uses
+  the same cached features during continuation.
+- `heads.pt`, `head_results.json`: training-only standardization, all three
+  20-epoch heads, training losses, sampled validation scores and selected design.
+- `last_checkpoint.pt`: adapter/head and control states, both optimizers, FP32
+  masters, exact batch cursor and RNG states, saved every 32 matched updates.
+  Resume retains the original start/deadline in `execution.json`.
+- `best_lora.pt`: best monitored LoRA and its control from the same update count.
+  `best_control.pt` retains the strongest control across monitored steps.
+  `selected_model.pt` promotes LoRA only for at least +0.005 AUROC over that
+  strongest control with no AP decrease. All Q12 tensor files have a SHA-256
+  prefix and `q12-magnitude-v1` payload; read them with `q12_backend.load_state`.
+- `training_history.json`, `training_membership.csv`, `validation_predictions.csv`,
+  `metrics.json`, `validation_curves.png`: matched progress, actual stopping
+  point, sampled predictions, component-bootstrap intervals and paired effects.
+  Selection and repeated validation make these development results.
+- `explore.log`, `run_status.json`, `failed-*.ipynb`: actual execution progress
+  and any errors. The runner saves a completed notebook only after all code
+  cells execute from a fresh kernel with outputs/counts retained.
+
+Exploration writes no benchmark comparison export. The separate command
+`.venv/bin/python -m notebooks.src.refresh_q12 --full-validation` executes and
+saves `Q12-lora-validation.ipynb`, evaluates the selected model on all 17,927
+variants and writes `q12/full/`. Only after successful notebook execution does
+it publish `q12/comparison_predictions.csv` and `comparison_results.json`.
+The comparison collector rejects sampled Q12 exports, incomplete full results,
+and missing reload verification. Full validation remains development data.
 
 ## Archived three-way experiment
 
