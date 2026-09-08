@@ -470,8 +470,7 @@ gains must be compared within their respective cohorts.
 - The early **Q11 block-31 attempt** stopped at preflight because diagnostic
   updates produced no effective BF16 prediction changes. It has no valid
   supervised performance score. See the [executed numerical
-  investigation](notebooks/Q11-gradient-diagnostics.ipynb) and
-  [failure discussion](#q11-ineffective-final-attention-block).
+  investigation](notebooks/Q11-gradient-diagnostics.ipynb) for the failure analysis.
 - The initial **Q13 FP32 head-fitting attempt** stopped before adapter training
   because no candidate met its convergence rule. The preserved retry fitted
   heads in FP64; only L2 strength 0.01 converged and qualified.
@@ -563,58 +562,3 @@ separate H100 configuration**, as recorded in [Experiment details](#experiment-d
 The system Python is externally managed (PEP 668): direct `pip install` commands
 are blocked. Use a virtual environment and its Jupyter kernel for package
 changes.
-
-## Unsuccessful attempts
-
-### Evo2 1B: numerical sensitivity and no fine-tuning gain
-
-NVIDIA's [BioNeMo model compatibility table](https://docs.nvidia.com/bionemo-framework/2.7.1/main/developer-guide/bionemo-evo2/bionemo-evo2-Overview/index.html#available-models-in-ngc)
-documents low BF16 accuracy for the original 1B checkpoint. The
-[fine-tuning tutorial's motivation](https://docs.nvidia.com/bionemo-recipes/latest/main/examples/bionemo-evo2/examples/fine-tuning-tutorial/index.html#background-and-motivation)
-reports near-random BRCA1 zero-shot AUC without FP8. NVIDIA supplies
-`evo2/1b-8k-bf16:1.0`, a checkpoint adapted for BF16. Q9's main comparison used
-the original checkpoint; the adapted version was tested only in numerical
-diagnostics. Q9's original-checkpoint BF16 results are consistent with this
-documented limitation, which we consider a likely contributor to the poor
-performance.
-
-The [Q9 experiments](notebooks/Q9-evo2-1b.ipynb) exposed numerical problems with
-the original 1B checkpoint. Vortex and BioNeMo produced different outputs;
-their RMS normalization differed, although this was not established as the sole
-cause. RMS (root mean square) measures the magnitude of the activations.
-
-In BioNeMo/BF16, Hyena block 23 produced activations around **10¹⁶ RMS**, while
-final attention block 24 contributed only **10⁻⁶ RMS**. Its contribution vanished
-in BF16 addition. Training block 23 allowed effective backbone updates, but the
-September pilot selected **epoch 0**: fine-tuning did not improve validation
-performance over the frozen classifier. The activation imbalance remains
-unexplained. [Diagnostic results](notebooks/results/q9/investigation/summary.json)
-and [backend comparison](notebooks/results/q9/archive/display_error/parity.json).
-
-### Q11: ineffective final attention block
-
-The original Q11 attempt stopped **before training** because final attention
-block **31** was numerically inactive in the tested checkpoint/configuration.
-FP32 optimizer master weights alone did not produce effective BF16 updates.
-Block **30** has demonstrated usable updates, making it a better-supported
-training target; validation must establish whether those updates improve
-prediction.
-
-<details>
-<summary>Q11 diagnostic findings</summary>
-
-- **Vanishing contribution:** block 30 activations were about **1.2 × 10¹¹ RMS**,
-  versus **0.006 RMS** for block 31's attention contribution. BF16 addition left
-  every output element unchanged.
-- **Tiny gradients:** attention-weight gradients were around **10⁻¹⁹** and MLP
-  gradients around **10⁻²⁵**. AdamW's epsilon suppressed the updates further;
-  gradient clipping reduced them roughly **33×** because it included the fixed
-  classifier's gradients.
-- **Master weights were insufficient:** a fresh probe changed **88 FP32 master
-  elements**, but **zero deployed BF16 elements**. Predictions remained identical.
-- **Checkpoint audit:** all **325 loaded tensors** matched the original
-  checkpoint. The tiny final-block weights were already present there; optimizer
-  wiring and the autograd connection were correct. Why pretraining produced this
-  imbalance remains unresolved.
-
-</details>
