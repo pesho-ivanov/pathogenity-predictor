@@ -93,11 +93,12 @@ def render(result, root=ROOT):
         path = root / relative
         if not path.is_file():
             path = next(iter(sorted((root / 'notebooks').glob(row['question'] + '-*.ipynb'))), None)
-        link = f'[{row["question"]}]({path.relative_to(root).as_posix()})' if path else row['question']
         name = html.escape(row['method']) + (' (licensed)' if row['id'] == 'q8:PrimateAI-3D' else '')
+        method = f'[{name}]({path.relative_to(root).as_posix()})' if path else name
         paper = c.METHOD_PAPERS.get(row['id'])
-        method = f'[{name}]({paper.split("](", 1)[1][:-1]})' if paper else name
-        table.append({'Method': method, 'Notebook': link,
+        if paper:
+            method += f' ([paper]({paper.split("](", 1)[1][:-1]}))'
+        table.append({'Method': method,
                       'Scored / validation': f'{row["covered"]:,} / {row["total"]:,}' if 'covered' in row else '—',
                       'AUROC [95% CI]': c.format_metric(row, 'auroc'),
                       'Average precision [95% CI]': c.format_metric(row, 'average_precision'),
@@ -138,7 +139,7 @@ def collapse_secondary_tables(text):
     def replace(match):
         header = match.group().splitlines()[0]
         performance = 'AUROC' in header or 'Average precision' in header
-        main = '| Method |' in header and '| Notebook |' in header
+        main = '| Method |' in header and '| Scored / validation |' in header
         return '' if performance and not main else match.group()
     return re.sub(r'\n{3,}', '\n\n', TABLE.sub(replace, text))
 

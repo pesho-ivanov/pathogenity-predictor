@@ -62,17 +62,19 @@ class ReadmeComparisonTests(unittest.TestCase):
         section = presentation.render(result, self.root)
         table = next(presentation.TABLE.finditer(section)).group()
         names = [line.split('|')[1].strip() for line in table.splitlines()[2:]]
-        self.assertEqual(names[:4], ['Previous Q11 LoRA', 'Evo2 7B zero-shot',
+        labels = [name.split(']')[0].lstrip('[') for name in names]
+        self.assertEqual(labels[:4], ['Previous Q11 LoRA', 'Evo2 7B zero-shot',
                                     'Previous Q14 frozen control', 'Previous Q14 LoRA'])
-        self.assertTrue(names[4].startswith('Evo2 7B Q16 continued LoRA'))
+        self.assertTrue(labels[4].startswith('Evo2 7B Q16 continued LoRA'))
+        self.assertIn('](notebooks/Q16-lora-continuation.ipynb)', names[4])
         self.assertEqual(names[5], '<hr>')
-        self.assertEqual([name.split(']')[0].lstrip('[') for name in names[6:]],
+        self.assertEqual(labels[6:],
                          ['SIFT4G', 'PolyPhen-2', 'REVEL', 'AlphaMissense', 'EVE', 'PrimateAI-3D (licensed)'])
         self.assertNotIn('| Paper |', table)
-        self.assertIn('| [REVEL](https://doi.org/10.1016/j.ajhg.2016.08.016) |', table)
+        self.assertNotIn('| Notebook |', table)
+        self.assertIn('[REVEL](notebooks/Q8-existing-tools.ipynb) ([paper](https://doi.org/10.1016/j.ajhg.2016.08.016))', table)
         for old in self.base['methods']:
-            prefix = '| [' if old['id'] in c.METHOD_PAPERS else '| '
-            self.assertIn(prefix + old['method'], table)
+            self.assertIn(old['method'] + (' (licensed)' if old['id'] == 'q8:PrimateAI-3D' else ''), labels)
             if 'covered' in old:
                 self.assertIn(f'| {old["covered"]} / 4 |', table)
         self.assertIn('Licensed data unavailable.', section)
@@ -93,8 +95,8 @@ class ReadmeComparisonTests(unittest.TestCase):
                     self.assertNotIn('metrics', row)
                     self.assertEqual(result['methods'][1:], self.base['methods'])
                     self.assertIn('Q16', result['errors'])
-                    line = next(line for line in section.splitlines() if line.startswith('| Evo2 7B Q16'))
-                    self.assertEqual([part.strip() for part in line.split('|')[3:6]], ['—', '—', '—'])
+                    line = next(line for line in section.splitlines() if line.startswith('| ') and 'Evo2 7B Q16' in line)
+                    self.assertEqual([part.strip() for part in line.split('|')[2:5]], ['—', '—', '—'])
                     q16_text = (self.root / 'README.md').read_text().split(q16_report.START, 1)[1].split(q16_report.END, 1)[0]
                     self.assertIn('results are unavailable', q16_text)
                     self.assertNotIn('Continuation minus Q14:', q16_text)
