@@ -871,7 +871,7 @@ class ComparisonTests(unittest.TestCase):
             try:
                 self.wait_for(lambda: c.SECTION_END in readme.read_text())
                 initial = readme.read_text()
-                self.assertIn('| q10 predictor | Q10 | — | 4 / 4 | 0.750', initial)
+                self.assertIn('| q10 predictor | Q10 | 4 / 4 | 0.750', initial)
                 # Preserve prose edited while the watcher is running.
                 edited = initial.replace('Keep these notes.', 'Keep these revised notes.')
                 readme.write_text(edited)
@@ -883,7 +883,7 @@ class ComparisonTests(unittest.TestCase):
                     result = c.read_json(self.results / 'comparison/summary.json')
                     row = next(r for r in result['methods'] if r['id'] == 'q10:score')
                     return (row['metrics']['auroc']['value'] == 1 and
-                            '| q10 predictor | Q10 | — | 4 / 4 | 1.000' in readme.read_text())
+                            '| q10 predictor | Q10 | 4 / 4 | 1.000' in readme.read_text())
                 self.wait_for(latest_score)
                 self.assertTrue(readme.read_text().startswith('# Project\n\nIntroduction.\n\n'))
                 self.assertTrue(readme.read_text().endswith('## Research questions\n\nKeep these revised notes.\n'))

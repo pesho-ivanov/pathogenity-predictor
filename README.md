@@ -46,20 +46,20 @@ Generated artifacts are described in [results documentation](notebooks/results/R
 
 **17,927 missense validation variants · ClinVar 2026-07-06 · full cohort**
 
-| Method | Notebook | Paper | Scored / validation | AUROC [95% CI] | Average precision [95% CI] | Runtime |
-| --- | --- | --- | --- | --- | --- | --- |
-| Evo2 7B Q16 continued LoRA (blocks 29 and 30, rank 8, 512 bp) | [Q16](notebooks/Q16-lora-continuation.ipynb) | — | 17,927 / 17,927 | 0.872 [0.859, 0.884] | 0.801 [0.769, 0.828] | 3.7 h |
-| Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) | [Q11](notebooks/Q11-evo2-lora.ipynb) | — | 17,927 / 17,927 | 0.693 [0.675, 0.711] | 0.487 [0.435, 0.536] | 42.6 min |
-| Evo2 7B Q14 LoRA (blocks 29 and 30, rank 8, 512 bp) | [Q14](notebooks/Q14-lora-validation.ipynb) | — | 17,927 / 17,927 | 0.852 [0.838, 0.865] | 0.770 [0.736, 0.797] | 1.3 h |
-| Evo2 7B Q14 strongest frozen classifier (magnitude features, 512 bp) | [Q14](notebooks/Q14-lora-validation.ipynb) | — | 17,927 / 17,927 | 0.839 [0.824, 0.852] | 0.749 [0.716, 0.778] | 1.3 h |
-| Evo2 7B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | — | 17,927 / 17,927 | 0.837 [0.824, 0.849] | 0.724 [0.686, 0.755] | 2.3 h |
-| <hr> | <hr> | <hr> | <hr> | <hr> | <hr> | <hr> |
-| SIFT4G | [Q8](notebooks/Q8-existing-tools.ipynb) | [Vaser et al. (2016)](https://doi.org/10.1038/nprot.2015.123) | 16,917 / 17,927 | 0.878 [0.865, 0.890] | 0.772 [0.734, 0.804] | 13.0 s |
-| PolyPhen-2 | [Q8](notebooks/Q8-existing-tools.ipynb) | [Adzhubei et al. (2010)](https://doi.org/10.1038/nmeth0410-248) | 16,430 / 17,927 | 0.894 [0.883, 0.905] | 0.822 [0.781, 0.852] | 12.4 s |
-| REVEL | [Q8](notebooks/Q8-existing-tools.ipynb) | [Ioannidis et al. (2016)](https://doi.org/10.1016/j.ajhg.2016.08.016) | 17,720 / 17,927 | 0.974 [0.970, 0.978] | 0.958 [0.945, 0.968] | 1.8 min |
-| AlphaMissense | [Q8](notebooks/Q8-existing-tools.ipynb) | [Cheng et al. (2023)](https://doi.org/10.1126/science.adg7492) | 16,884 / 17,927 | 0.962 [0.956, 0.967] | 0.940 [0.923, 0.951] | 1.2 min |
-| EVE | [Q8](notebooks/Q8-existing-tools.ipynb) | [Frazer et al. (2021)](https://doi.org/10.1038/s41586-021-04043-8) | 9,284 / 17,927 | 0.909 [0.889, 0.925] | 0.916 [0.889, 0.935] | 5.5 s |
-| PrimateAI-3D (licensed) | [Q8](notebooks/Q8-existing-tools.ipynb) | [Gao et al. (2023)](https://doi.org/10.1126/science.abn8197) | — | — | — | — |
+| Method | Notebook | Scored / validation | AUROC [95% CI] | Average precision [95% CI] | Runtime |
+| --- | --- | --- | --- | --- | --- |
+| Evo2 7B Q16 continued LoRA (blocks 29 and 30, rank 8, 512 bp) | [Q16](notebooks/Q16-lora-continuation.ipynb) | 17,927 / 17,927 | 0.872 [0.859, 0.884] | 0.801 [0.769, 0.828] | 3.7 h |
+| Evo2 7B base LoRA (block 30, rank 8, partial epoch, 512 bp) | [Q11](notebooks/Q11-evo2-lora.ipynb) | 17,927 / 17,927 | 0.693 [0.675, 0.711] | 0.487 [0.435, 0.536] | 42.6 min |
+| Evo2 7B Q14 LoRA (blocks 29 and 30, rank 8, 512 bp) | [Q14](notebooks/Q14-lora-validation.ipynb) | 17,927 / 17,927 | 0.852 [0.838, 0.865] | 0.770 [0.736, 0.797] | 1.3 h |
+| Evo2 7B Q14 strongest frozen classifier (magnitude features, 512 bp) | [Q14](notebooks/Q14-lora-validation.ipynb) | 17,927 / 17,927 | 0.839 [0.824, 0.852] | 0.749 [0.716, 0.778] | 1.3 h |
+| Evo2 7B base zero-shot (Vortex, FP8) | [Q2](notebooks/Q2-evo2-classifier.ipynb) | 17,927 / 17,927 | 0.837 [0.824, 0.849] | 0.724 [0.686, 0.755] | 2.3 h |
+| <hr> | <hr> | <hr> | <hr> | <hr> | <hr> |
+| [SIFT4G](https://doi.org/10.1038/nprot.2015.123) | [Q8](notebooks/Q8-existing-tools.ipynb) | 16,917 / 17,927 | 0.878 [0.865, 0.890] | 0.772 [0.734, 0.804] | 13.0 s |
+| [PolyPhen-2](https://doi.org/10.1038/nmeth0410-248) | [Q8](notebooks/Q8-existing-tools.ipynb) | 16,430 / 17,927 | 0.894 [0.883, 0.905] | 0.822 [0.781, 0.852] | 12.4 s |
+| [REVEL](https://doi.org/10.1016/j.ajhg.2016.08.016) | [Q8](notebooks/Q8-existing-tools.ipynb) | 17,720 / 17,927 | 0.974 [0.970, 0.978] | 0.958 [0.945, 0.968] | 1.8 min |
+| [AlphaMissense](https://doi.org/10.1126/science.adg7492) | [Q8](notebooks/Q8-existing-tools.ipynb) | 16,884 / 17,927 | 0.962 [0.956, 0.967] | 0.940 [0.923, 0.951] | 1.2 min |
+| [EVE](https://doi.org/10.1038/s41586-021-04043-8) | [Q8](notebooks/Q8-existing-tools.ipynb) | 9,284 / 17,927 | 0.909 [0.889, 0.925] | 0.916 [0.889, 0.935] | 5.5 s |
+| [PrimateAI-3D (licensed)](https://doi.org/10.1126/science.abn8197) | [Q8](notebooks/Q8-existing-tools.ipynb) | — | — | — | — |
 
 Coverage differs among tools: each AUROC and average precision uses the scored variants shown. These rows do not establish a ranking on identical variants. “—” indicates an unavailable result or timing.
 

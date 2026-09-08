@@ -60,8 +60,11 @@ class ReadmeComparisonTests(unittest.TestCase):
         section = presentation.render(result, self.root)
         table = next(presentation.TABLE.finditer(section)).group()
         self.assertTrue(table.splitlines()[2].startswith('| Evo2 7B Q16 continued LoRA'))
+        self.assertNotIn('| Paper |', table)
+        self.assertIn('| [REVEL](https://doi.org/10.1016/j.ajhg.2016.08.016) |', table)
         for old in self.base['methods']:
-            self.assertIn('| ' + old['method'], table)
+            prefix = '| [' if old['id'] in c.METHOD_PAPERS else '| '
+            self.assertIn(prefix + old['method'], table)
             if 'covered' in old:
                 self.assertIn(f'| {old["covered"]} / 4 |', table)
         self.assertIn('Licensed data unavailable.', section)
@@ -83,7 +86,7 @@ class ReadmeComparisonTests(unittest.TestCase):
                     self.assertEqual(result['methods'][1:], self.base['methods'])
                     self.assertIn('Q16', result['errors'])
                     line = next(line for line in section.splitlines() if line.startswith('| Evo2 7B Q16'))
-                    self.assertEqual([part.strip() for part in line.split('|')[4:7]], ['—', '—', '—'])
+                    self.assertEqual([part.strip() for part in line.split('|')[3:6]], ['—', '—', '—'])
                     q16_text = (self.root / 'README.md').read_text().split(q16_report.START, 1)[1].split(q16_report.END, 1)[0]
                     self.assertIn('results are unavailable', q16_text)
                     self.assertNotIn('Continuation minus Q14:', q16_text)

@@ -90,7 +90,9 @@ def render(result, root=ROOT):
             path = next(iter(sorted((root / 'notebooks').glob(row['question'] + '-*.ipynb'))), None)
         link = f'[{row["question"]}]({path.relative_to(root).as_posix()})' if path else row['question']
         name = html.escape(row['method']) + (' (licensed)' if row['id'] == 'q8:PrimateAI-3D' else '')
-        table.append({'Method': name, 'Notebook': link, 'Paper': c.METHOD_PAPERS.get(row['id'], '—'),
+        paper = c.METHOD_PAPERS.get(row['id'])
+        method = f'[{name}]({paper.split("](", 1)[1][:-1]})' if paper else name
+        table.append({'Method': method, 'Notebook': link,
                       'Scored / validation': f'{row["covered"]:,} / {row["total"]:,}' if 'covered' in row else '—',
                       'AUROC [95% CI]': c.format_metric(row, 'auroc'),
                       'Average precision [95% CI]': c.format_metric(row, 'average_precision'),
@@ -130,7 +132,7 @@ def collapse_secondary_tables(text):
     def replace(match):
         header = match.group().splitlines()[0]
         performance = 'AUROC' in header or 'Average precision' in header
-        main = '| Notebook |' in header and '| Paper |' in header
+        main = '| Method |' in header and '| Notebook |' in header
         return '' if performance and not main else match.group()
     return re.sub(r'\n{3,}', '\n\n', TABLE.sub(replace, text))
 
