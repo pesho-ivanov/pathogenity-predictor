@@ -2,10 +2,34 @@
 
 ## Problem statement
 
-Predict whether a single-nucleotide **missense variant** is **benign (0)** or
-**pathogenic (1)** using ClinVar labels, merging “likely benign” and “likely
-pathogenic” into their respective classes. Uncertain, conflicting, other, and
-missing labels are excluded from training and evaluation.
+This is a **binary classification** task: predict whether a single-nucleotide
+**missense variant** is **benign (0)** or **pathogenic (1)** using ClinVar labels,
+merging “likely benign” and “likely pathogenic” into their respective classes.
+Uncertain, conflicting, other, and missing labels are excluded from training
+and evaluation.
+
+The model outputs a continuous pathogenicity score. Applying a threshold converts
+that score into a binary prediction; we currently evaluate the scores using
+AUROC and average precision.
+
+### Basic classification approaches
+
+- **Majority-class baseline:** always predict the most common training label.
+- **Single-score threshold:** predict pathogenic when one score exceeds a cutoff.
+- **Logistic regression:** learn a weighted combination of features and map it
+  through a sigmoid to a probability.
+- **Shallow decision tree:** learn a small set of feature-based decision rules.
+- **Naive Bayes:** combine feature evidence assuming conditional independence.
+- **k-nearest neighbors:** use the labels of the most similar training examples.
+
+Our Evo2 predictor uses a linear logistic classifier on sequence representations.
+Q14 and Q16 hold that classifier fixed while LoRA adapts the representations. The other
+approaches above describe basic alternatives; they are not all implemented or
+evaluated in this project. No clinical probability calibration or classification
+cutoff has been validated for these LoRA runs.
+
+See the [Q16 results](#q16-does-longer-fine-tuning-improve-on-q14) for the larger
+fine-tuning run and its full validation comparison.
 
 ### Data
 
@@ -233,6 +257,322 @@ from the **43.0-minute** exploration (**77.7 minutes combined**). This excludes
 inherited feature extraction, head fitting and earlier experiments; the one-hour
 budget applied to the exploration.
 
+<!-- q16-results:start -->
+## Q16. Does longer fine-tuning improve on Q14?
+
+[Q16 continued LoRA](notebooks/Q16-lora-continuation.ipynb) continues the successful Q14 adapters with the original classifier and scaler fixed. Train on all **46,888 available training variants**, for up to **three epochs** at learning rate **3e-5**, subject to the original four-hour deadline.
+
+**Matched full validation: 17,927 missense variants.**
+
+| Model | AUROC [95% CI] | Average precision [95% CI] |
+| --- | ---: | ---: |
+| Q16 continued LoRA | 0.872 [0.859, 0.884] | 0.801 [0.769, 0.828] |
+| Q14 parent LoRA | 0.852 [0.838, 0.865] | 0.770 [0.736, 0.797] |
+| Matched frozen classifier | 0.839 [0.824, 0.852] | 0.749 [0.716, 0.778] |
+
+The tested continuation improved full-validation AUROC without reducing AP versus Q14. Continuation minus Q14: AUROC **+0.0204 [+0.0160, +0.0249]**, AP **+0.0316 [+0.0250, +0.0384]**. The sample-based decision retains **Q16 continued LoRA**. The best nonzero-update continuation is chosen by sample AUROC, then AP; it replaces Q14 only if sample AUROC strictly increases and AP does not decrease. Full results do not change that decision. The 2,048-variant sample selects checkpoints; full validation reports the frozen selection. The full partition and its subsets have been evaluated before and are development data, not an untouched test set. Component-bootstrap intervals do not correct repeated selection or establish clinical validity. Pretraining, homology and external-data overlap remain unresolved. Single-variant BF16 scoring is numerically sensitive; Q16 uses its verified batch-32 workflow.
+
+Fresh notebook execution: **202.4 minutes**. Elapsed from the original four-hour request through backend results: **219.9 minutes**. The notebook duration includes its input checks, training, full validation and reporting; inherited Q14 training and initial environment acquisition are excluded.
+
+<details><summary>Selection sample and reproducibility</summary>
+
+| Model | AUROC [95% CI] | Average precision [95% CI] |
+| --- | ---: | ---: |
+| Q16 continued LoRA | 0.869 | 0.777 |
+| Q14 parent LoRA | 0.845 | 0.748 |
+| Matched frozen classifier | 0.832 | 0.725 |
+
+Training examples processed: **132,592**; unique training variants: **46,888 / 46,888**; optimizer updates: **4,145**. The preserved [Q16 result record](notebooks/results/comparison/published/q16-results.json) pins the executed notebook, displayed metrics/provenance, source hashes, Q1 cohort and original measured run status. Earlier comparison rows remain in their original section.
+
+</details>
+<!-- q16-results:end -->
+
+## Experiment details
+
+The answers below describe the completed **Q14 Evo2 7B experiment** and the
+preceding Q11–Q13 attempts. **All reported performance is development validation;
+there is no untouched test set.** AP means **average precision across
+thresholds**, not precision at a selected cutoff.
+
+<details>
+<summary>Variant counts, ClinVar release, labels and split construction</summary>
+
+These are the counts after eligibility filtering. The exploratory rows are
+subsets of the full partitions and must not be added to them.
+
+| Cohort | Total | Pathogenic / likely pathogenic | Benign / likely benign |
+| --- | ---: | ---: | ---: |
+| Full eligible modeling cohort | **64,815** | **24,696** | **40,119** |
+| Full training partition | 46,888 | 18,173 | 28,715 |
+| Full validation partition | 17,927 | 6,523 | 11,404 |
+| Q14 registered training subset | 24,576 | 9,616 | 14,960 |
+| Actually processed by each Q14 adapter trial | **16,384** | **6,467** | **9,917** |
+| Validation sample used for model selection | 2,048 | 688 | 1,360 |
+
+Both adapter trials processed the **same 16,384 unique variants**, once per
+trial. The inherited classifier and scaler used the larger 24,576-variant
+training subset. Counts were verified against Q1's frozen label files, Q14's
+membership lists and the saved training-order hashes.
+
+**Release and assembly.** The input is ClinVar **6 July 2026**,
+`clinvar_20260706.vcf`, on **GRCh38**. Sequence contexts come from the pinned UCSC
+`hg38.fa.gz` reference. File dates, checksums and every retained REF allele are
+checked. [Input sources and checksums](data/README.md).
+
+**Variant types.** Only missense **SNVs** are modeled: one A/C/G/T REF base and
+one different A/C/G/T ALT base, on chromosomes 1–22, X or Y. Indels and multi-base
+substitutions are excluded. Eligibility requires ClinVar's exact `MC` missense
+term `SO:0001583`, at least **two review stars**, an accepted label, no germline
+conflict evidence and usable gene identifiers. Consistent duplicates are
+collapsed; inconsistent duplicates are excluded. Truncated or non-ACGT sequence
+windows are excluded, and a reference mismatch stops execution.
+
+**Binary labels.** Only these exact `CLNSIG` strings are accepted:
+
+| Integer label | Accepted classifications |
+| --- | --- |
+| **0: benign** | `Benign`, `Likely_benign`, `Benign/Likely_benign` |
+| **1: pathogenic** | `Pathogenic`, `Likely_pathogenic`, `Pathogenic/Likely_pathogenic` |
+
+Uncertain, conflicting, missing and other classifications are excluded; labels
+are not inferred from free text. Eligibility annotations and labels are not
+predictor features. [Label mapping and filters](notebooks/src/q0.py) ·
+[Missense eligibility](notebooks/src/q1.py).
+
+**Splitting.** The original assignment is label-independent, with a **70/30
+training/validation target** and seed **42**. Connected components join shared
+genes, variation IDs, allele IDs, variant keys, loci and transitive overlaps of
+the original **1,024-base** contexts. Qualifying nonmissense SNVs remain in this
+graph as bridges; only missense SNVs enter modeling. Identical or
+reverse-complement contexts are also joined.
+
+The initial component anchor is its minimum variant key. Assignment uses
+`int(SHA256("42:split:" + anchor), 16) / 2**256`: values below 0.70 go to
+training. Inherited assignments are preserved, including recorded overrides;
+the full cohort is not rebalanced or newly stratified. A later sequence merge
+that would connect opposite splits stops execution instead of moving variants.
+The realized variant counts therefore differ from exactly 70/30.
+
+**Gene/locus separation.** Audits found zero cross-split overlap in gene IDs,
+loci, components, variation IDs and allele IDs. Identical or reverse-complement
+512-base allele contexts also did not cross splits. Homology between different
+genes, shared-patient overlap and pretraining sequence exposure remain unresolved.
+
+Q12–Q14 reuse the same seed-42 training subset and uniform 2,048-variant
+validation sample without replacement. `clinvar-train.vcf` is training;
+**`clinvar-test.vcf` is development validation despite its filename**.
+[Grouping and original assignment](notebooks/src/q1.py) ·
+[Frozen full-cohort protocol](notebooks/src/q1_full.py) ·
+[Q14 membership checks](notebooks/src/q14.py).
+
+</details>
+
+<details>
+<summary>Evo2 checkpoint, sequence window and exact score formula</summary>
+
+The checkpoint is **`arcinstitute/savanna_evo2_7b_base`**, revision
+`eb0a7478e5f3c291f31e2b3d9ec14fc067f9982a`, file
+`savanna_evo2_7b_base.pt`. Its SHA-256 is
+`ed8d264c14fea3c6305b475122e068e09009cbdabc05e1653764147c1b294cd4`.
+The measured loaded backbone contains **6,481,649,408 parameters**, with
+**32 layers** and hidden width **4,096**. Q14 uses the BioNeMo/NeMo conversion
+in **BF16**, with FP8 disabled. All 325 audited converted tensors matched the
+source; native Savanna/Vortex forward-output parity remains unresolved.
+[Model configuration](notebooks/src/q10.py) ·
+[Loading and conversion audit](notebooks/src/q11_backend.py).
+
+Each allele uses **512 nucleotides**: 256 before the mutation, the mutated
+position and 255 afterward. The reference/alternate pair is canonicalized
+against its reverse complement **before cropping** from the frozen 1,024-base
+contexts. Q14 uses one canonical orientation, producing two sequences per
+variant. [Canonical crop](notebooks/src/q11.py).
+
+For the Q14 classifier, let $h_r$ and $h_a$ be the 4,096-dimensional means of
+the last decoder block's activations over all 512 positions, **before final
+normalization**. Pooling is computed in FP32. Define:
+
+$$
+d=h_a-h_r,\qquad
+R(v)=\sqrt{\frac{1}{4096}\sum_j v_j^2},\qquad
+U(v)=\frac{v}{\max(R(v),10^{-6})},\qquad
+M(v)=\max(R(v),10^{-12}).
+$$
+
+The **8,194 features** retain both direction and mutation magnitude:
+
+$$
+\phi=\left[U(h_r),\ U(d),\ \ln M(d),
+\ln\max\left(\frac{M(d)}{M(h_r)},10^{-12}\right)\right].
+$$
+
+The reported score is the classifier's raw logit:
+
+$$
+z=w^\top\left(\frac{\phi-\mu}{s}\right)+b.
+$$
+
+The mean $\mu$ and population standard deviation $s$ are fitted on training
+features only, with each standard deviation floored at $10^{-6}$.
+The classifier and scaler are inherited from Q12 and remain fixed during Q14.
+**Higher $z$ means more pathogenic.** AUROC and AP use $z$; a sigmoid would
+preserve ranking, but its output is not established as a calibrated clinical
+probability. [Feature formula](notebooks/src/q12_backend.py) ·
+[Training-only standardization](notebooks/src/q12.py).
+
+The separate **Q2 zero-shot row** uses a different score:
+
+$$
+S_{\mathrm{zero-shot}}=\bar{\ell}(x_r)-\bar{\ell}(x_a),\qquad
+\ell(x)=\frac{1}{L-1}\sum_{t=2}^{L}\ln p(x_t\mid x_{<t}),\quad L=1024.
+$$
+
+Here $\bar{\ell}$ averages the forward and reverse-complement sequence
+likelihoods, without a beginning-of-sequence token. Higher scores again mean more
+pathogenic: the alternate sequence is less likely than the reference.
+[Q2 zero-shot definition](notebooks/src/q2_7b.py).
+
+</details>
+
+<details>
+<summary>LoRA settings, trainable parameters, optimization, GPU time and cost</summary>
+
+Q14 uses **rank 8**, **alpha 16** (scaling $\alpha/r=2$), **dropout 0**,
+Xavier-normal A matrices and zero B matrices. Targets use zero-based layer
+indices:
+
+```text
+decoder.layers.29.mixer.dense_projection
+decoder.layers.29.mixer.dense
+decoder.layers.30.mixer.dense_projection
+decoder.layers.30.mixer.dense
+```
+
+There are **393,216 trainable adapter parameters** across eight matrices. The
+**6,481,649,408 backbone parameters** and **8,195 classifier parameters** are
+frozen. Classifier and scaler preservation, actual adapter updates and
+checkpoint reload predictions were checked.
+[Adapter implementation](notebooks/src/q14_adapters.py).
+
+| Setting | Q14 value |
+| --- | --- |
+| Loss | Class-balanced binary cross entropy with logits |
+| Class weights | $24,576/(2N_c)$; benign ≈0.821390, pathogenic ≈1.277870 |
+| Optimizer | AdamW; betas (0.9, 0.999), epsilon $10^{-8}$ |
+| Adapter weight decay | 0.01 |
+| Peak learning rates tested | $3\times10^{-5}$ and **$10^{-4}$, selected** |
+| Schedule | 32-step linear warmup, then cosine decay to 10% of peak |
+| Gradient clipping | Adapter gradient norm at 1.0 |
+| Batch size | **32 variants**, or **64 allele sequences** |
+| Gradient accumulation | One batch per optimizer update |
+| Updates | **512 per trial**; selected checkpoint at step 512 |
+| Validation checkpoints | Steps 0, 256 and 512 |
+| Seed | 42 |
+| Precision | BF16 backbone/adapters; FP32 pooling, classifier and optimizer masters |
+
+For a batch of $B=32$ variants, the loss is
+$\frac{1}{B}\sum_i c_{y_i}[\log(1+\exp(z_i))-y_i z_i]$, evaluated with the
+stable BCE-with-logits implementation. The class weights use the registered
+training subset: $N_0=14,960$, $N_1=9,616$.
+Only adapters enter the optimizer; the inherited classifier has learning rate
+zero. The two trials start from the same fixed Q12 classifier and fresh
+zero-output adapters and use identical batch order.
+[Frozen configuration](notebooks/src/q14.py) ·
+[Loss, optimizer and schedule](notebooks/src/q14_backend.py).
+
+**Hardware and timing.** The run used **one NVIDIA H100 PCIe, 80 GB**.
+The fully executed Q14 exploration took **43.0 minutes**, including both
+learning-rate trials, sampled validation and integrity checks. Full confirmation
+took **34.7 minutes** separately: **77.7 minutes combined**. Initial setup,
+inherited feature extraction/head fitting and earlier experiments are additional.
+The one-hour target applied only to exploration.
+
+**Cost.** Actual billing was not recorded. At an hourly instance rate $R$,
+these elapsed times correspond to approximately **$0.717R$** for exploration
+and **$1.295R$** including confirmation, excluding earlier work and other
+charges. These are rate-based estimates, not a recorded invoice.
+[Completed runtime records](notebooks/results/comparison/published/results.json).
+
+</details>
+
+<details>
+<summary>Best completed 7B results and failed attempts</summary>
+
+Rows report retained checkpoints or their frozen controls; monitored trials use
+their best recorded checkpoint. Metrics are rounded to six decimals. Validation
+scope differs between rows. Full-cohort confidence intervals
+and paired effects are reported in [Q14 confirmation](#q14-full-cohort-confirmation).
+There are **no untouched-test results**.
+
+| Experiment | Validation variants | AUROC | Average precision | Outcome |
+| --- | ---: | ---: | ---: | --- |
+| Q11 completed block-30 LoRA | 17,927 | 0.693415 | 0.486960 | No fitted frozen baseline |
+| Q12 LoRA with magnitude features | 2,048 | 0.831200 | 0.723744 | Frozen classifier performed better |
+| Q13, learning rate 3e-5, step 256 | 2,048 | 0.830051 | 0.722151 | Below strongest inherited control |
+| Q13, learning rate 1e-5, step 256 | 2,048 | 0.829789 | 0.722081 | Below strongest inherited control |
+| Q14, learning rate 3e-5, step 512 | 2,048 | 0.832805 | 0.727867 | Below the +0.005 AUROC promotion threshold |
+| Q14, learning rate 1e-4, step 512 | 2,048 | **0.844974** | **0.747974** | Selected |
+| Q14 strongest frozen classifier | 17,927 | 0.838565 | 0.749067 | Full-cohort baseline |
+| **Q14 selected LoRA** | **17,927** | **0.851680** | **0.769681** | **Full confirmation passed** |
+
+Q12's best frozen classifier scored **0.831970 AUROC / 0.724542 AP** on the
+selection sample. Q13's own best matched control scored **0.829448 / 0.721583**,
+so its small adapter gain did not beat the inherited Q12 classifier. Q14 retained
+that strongest Q12 classifier as its fixed control. Sampled gains and full-cohort
+gains must be compared within their respective cohorts.
+[Q11](notebooks/Q11-evo2-lora.ipynb) ·
+[Q12](notebooks/Q12-lora-improvement.ipynb) ·
+[Q13](notebooks/Q13-lora-optimization.ipynb) ·
+[Q14 exploration](notebooks/Q14-layer-adapters.ipynb) ·
+[Q14 full validation](notebooks/Q14-lora-validation.ipynb).
+
+- The early **Q11 block-31 attempt** stopped at preflight because diagnostic
+  updates produced no effective BF16 prediction changes. It has no valid
+  supervised performance score. See the [executed numerical
+  investigation](notebooks/Q11-gradient-diagnostics.ipynb) and
+  [failure discussion](#q11-ineffective-final-attention-block).
+- The initial **Q13 FP32 head-fitting attempt** stopped before adapter training
+  because no candidate met its convergence rule. The preserved retry fitted
+  heads in FP64; only L2 strength 0.01 converged and qualified.
+- **Q12 and Q13 completed negative adapter experiments**; those results are
+  distinct from execution failures.
+- **Q15 remains unrun**: its contingency implementation passed CPU tests, but
+  GPU training and replay equivalence are unverified. It has no performance result.
+
+</details>
+
+<details>
+<summary>Sources of the comparison AUROCs around 0.88–0.97</summary>
+
+These are **Q8's measurements against this project's ClinVar validation labels**,
+using published predictor outputs. They are not performance figures copied from
+the method papers. Exact **GRCh38 chromosome, position, REF and ALT** are matched,
+with labels joined afterward. Q8 fits no predictor or threshold.
+
+| Predictor | Published prediction source | Score transformation / aggregation |
+| --- | --- | --- |
+| SIFT4G | dbNSFP4.9a, `SIFT4G_score` | 1 minus the minimum raw score |
+| PolyPhen-2 HumVar | dbNSFP4.9a, `Polyphen2_HVAR_score` | Maximum raw score |
+| REVEL | [v1.3, 3 May 2021](https://zenodo.org/records/7072866) | Maximum matching transcript score, using GRCh38 positions |
+| AlphaMissense | [2023 GRCh38 release](https://github.com/google-deepmind/alphamissense), pinned GCS generation `1691073413649109` | Maximum matching `am_pathogenicity` |
+| EVE | dbNSFP4.9a, continuous `EVE_score` | Maximum raw score, without confidence-category filtering |
+
+The main [comparison table](#method-comparison) reports their AUROC/AP and exact
+coverage: SIFT4G **16,917**, PolyPhen-2 **16,430**, REVEL **17,720**,
+AlphaMissense **16,884**, and EVE **9,284**, out of 17,927 validation variants.
+Missing scores remain missing, so these per-method cohorts differ.
+[Score sources and checksums](data/README.md) ·
+[Executed Q8 measurements](notebooks/Q8-existing-tools.ipynb) ·
+[Portable comparison evidence](notebooks/results/comparison/published/results.json).
+
+Q8's original per-variant caches are currently absent; its preserved measurements
+are rounded executed-notebook results with verified provenance. The existing
+**8,817-variant shared comparison excludes LoRA**. Training/calibration overlap
+with ClinVar, homologous sequences and pretraining exposure remain unresolved.
+These comparisons do not establish independent clinical validity or identify
+the cause of the performance gap.
+
+</details>
+
 ## Research questions
 
 ### [Q0. Which ClinVar missense variants are usable?](notebooks/Q0-clinvar-summary.ipynb)
@@ -298,6 +638,14 @@ archives previous attempts and executes the notebook from a fresh kernel.
 Evaluate the promoted model separately on all validation variants with
 `.venv/bin/python -m notebooks.src.refresh_lora_validation --question q14`.
 
+<!-- q16-question:start -->
+### [Q16. Does longer fine-tuning improve on Q14?](notebooks/Q16-lora-continuation.ipynb)
+
+Continue Q14’s successful adapters at learning rate **3e-5**, using all **46,888 training variants** for up to **three epochs** within the original four-hour deadline. Keep the classifier and scaler fixed. Select on the existing 2,048-variant sample, then score all 17,927 validation variants with the continuation, Q14 parent and frozen classifier; preserve negative outcomes and paired component intervals. See the [Q16 results](#q16-does-longer-fine-tuning-improve-on-q14).
+
+Run `.venv/bin/python -m notebooks.src.refresh_q16` with the prepared **Lida** kernel. The runner preserves prior attempts and saves only a fully executed notebook.
+<!-- q16-question:end -->
+
 ## Setup
 
 Use Linux x86-64 with Python 3.12, virtual-environment support, Git and curl.
@@ -325,8 +673,9 @@ The runner reserves time for full validation and publishes only on success.
 
 ## Machine configuration
 
-Observed on 2026-09-07 in the current container/VM. These are the resources
-visible to this environment, not minimum project requirements.
+Historical environment snapshot observed on **2026-09-07**. These were the
+resources visible then, not minimum project requirements. **Q14 ran on a
+separate H100 configuration**, as recorded in [Experiment details](#experiment-details).
 
 - **GPU:** 1 NVIDIA L40S, 46,068 MiB VRAM; NVIDIA driver 565.57.01.
 - **CPU:** AMD EPYC 9254; 8 logical CPUs exposed (4 cores, 2 threads per core),

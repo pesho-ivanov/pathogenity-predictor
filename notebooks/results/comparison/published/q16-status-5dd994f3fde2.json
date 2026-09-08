@@ -1,0 +1,10 @@
+{
+  "deadline_utc": 1788902273.0,
+  "notebook_execution_seconds": 12144.208005666733,
+  "notebook_sha256": "4ba91e0a1fc221609473cb6e4dd645d82d56c8bb29b470b4d1aa738671b70675",
+  "question": "q16",
+  "request_elapsed_seconds": 13202.392241239548,
+  "started_utc": 1788887873.0,
+  "status": "complete",
+  "within_four_hours": true
+}

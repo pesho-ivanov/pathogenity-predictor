@@ -570,3 +570,17 @@ weights; do not edit them in place. `archive_manifest.json` records the source
 commit and storage policy. `split_inheritance.json` records assignment inheritance;
 `migration_audit.json` records the verified final July membership and snapshot checks.
 The uncompressed September `data/clinvar.vcf` is removed after the July rebuild.
+
+<!-- q16-results:start -->
+## Q16 artifacts: longer LoRA continuation
+
+[Q16](../Q16-lora-continuation.ipynb) continues Q14 adapters, keeps the classifier/scaler fixed, selects a candidate on the existing 2,048-variant sample, and compares it with Q14 and the frozen classifier on all 17,927 validation variants. Full validation never changes the sample decision.
+
+`q16/` contains the frozen protocol/input checks, training history and exposure records, selected and best-continuation checkpoints, full `validation_predictions.csv`, `metrics.json`, `training_curves.png`, and the original `run_status.json`. Actual failed attempts remain preserved.
+
+`publication_status.json`, written after publication, records the actual end-to-end completion or publication failure against the original deadline. It is separate from the hash-bound notebook completion status and is not inserted into the earlier result artifact registry.
+
+`comparison/published/q16-results.json` retains the full result and displayed provenance with a checksum-pinned executed notebook and byte-for-byte copy of its measured run status. Run `python -m notebooks.src.q16_report` to verify that evidence and refresh only Q16’s marked README sections. A partial or corrupt local Q16 result is an error, never a fallback to cached numbers. The original comparison registry and its earlier method rows are unchanged.
+
+The 2,048-variant sample selects checkpoints; full validation reports the frozen selection. The full partition and its subsets have been evaluated before and are development data, not an untouched test set. Component-bootstrap intervals do not correct repeated selection or establish clinical validity. Pretraining, homology and external-data overlap remain unresolved. Single-variant BF16 scoring is numerically sensitive; Q16 uses its verified batch-32 workflow.
+<!-- q16-results:end -->
